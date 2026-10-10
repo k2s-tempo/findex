@@ -1,0 +1,11 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\.pytest_cache",
+    "\\src",
+    "\\src\\findex",
+    "\\tests"
+  ],
+  "SelectedNode": "\\src\\findex\\stats_greedy.py",
+  "PreviewInSolutionExplorer": false
+}

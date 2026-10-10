@@ -37,7 +37,7 @@ def iter_documents(corpus_dir: Path):
     Не завантажує весь корпус у пам'ять одночасно —
     кожен наступний файл читається тільки коли до нього доходить черга.
     """
-    for path in sorted(corpus_dir.glob("*.txt")):
+    for path in sorted(corpus_dir.rglob("*.txt")):
         raw_text = path.read_text(encoding="utf-8")
         clean_text = _strip_boilerplate(raw_text)
         yield Document(doc_id=path.stem, path=path, text=clean_text)
