@@ -1,16 +1,18 @@
-"""
+﻿"""
 Інвертований індекс: термін -> відсортований за doc_id список постінгів.
 
-Інваріант: doc_id призначається по зростанню в порядку обходу корпусу
-(iter_documents віддає файли відсортованими), тому кожен список постінгів
-автоматично відсортований за doc_id. Це потрібно для merge-пошуку.
+Index поводиться як read-only відображення (collections.abc.Mapping):
+len(index) - кількість термінів, term in index, index[term], for term in index.
 """
 import argparse
 from collections import Counter, defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 from findex.corpus import iter_documents
+from findex.decorators import timed
 from findex.stats import run_with_measurement
 from findex.tokenizer import tokenize
 
@@ -29,14 +31,81 @@ class DocMeta:
     length: int  # кількість токенів у документі
 
 
-@dataclass
-class Index:
-    postings: dict[str, list[Posting]]
-    docs: list[DocMeta]
-    # term -> {doc_id: [позиції токена]}; None, якщо індекс без позицій
-    positions: dict[str, dict[int, list[int]]] | None = None
+class Index(Mapping):
+    """Інвертований індекс як об'єкт «як у Python».
+
+    Не slots-клас: cached_property зберігає значення в __dict__ екземпляра.
+    """
+
+    def __init__(self, postings, docs, positions=None):
+        self.postings = postings      # term -> list[Posting]
+        self.docs = docs              # list[DocMeta], індекс = doc_id
+        self.positions = positions    # term -> {doc_id: [позиції]} або None
+        self.closed = False
+        self._close_callbacks = []
+
+    # --- мінімум для Mapping: решта (keys, items, get, ==) приходить безкоштовно ---
+    def __getitem__(self, term):
+        self._check_open()
+        return self.postings[term]
+
+    def __iter__(self):
+        return iter(self.postings)
+
+    def __len__(self):
+        return len(self.postings)
+
+    # --- швидший за стандартний (той викликає __getitem__ і ловить KeyError) ---
+    def __contains__(self, term):
+        return term in self.postings
+
+    def __repr__(self):
+        pos = "з позиціями" if self.has_positions else "без позицій"
+        state = ", закрито" if self.closed else ""
+        return f"<Index: {len(self.docs)} док., {len(self.postings)} термінів, {pos}{state}>"
+
+    # --- обчислювані властивості ---
+    @property
+    def num_docs(self) -> int:
+        return len(self.docs)
+
+    @cached_property
+    def avg_doc_length(self) -> float:
+        """Рахується один раз і кешується в __dict__ (повторне звернення безкоштовне)."""
+        if not self.docs:
+            return 0.0
+        return sum(d.length for d in self.docs) / len(self.docs)
+
+    @property
+    def has_positions(self) -> bool:
+        return self.positions is not None
+
+    def df(self, term: str) -> int:
+        """Document frequency: у скількох документах зустрічається термін."""
+        return len(self.postings.get(term, ()))
+
+    # --- життєвий цикл ---
+    def on_close(self, callback) -> None:
+        """Зареєструвати дію, що виконається при close() (напр. cache_clear)."""
+        self._close_callbacks.append(callback)
+
+    def close(self) -> None:
+        if self.closed:
+            return
+        self.closed = True
+        for cb in self._close_callbacks:
+            cb()
+        self.postings = {}
+        self.positions = None
+        self.docs = []
+        self.__dict__.pop("avg_doc_length", None)  # скинути кеш
+
+    def _check_open(self):
+        if self.closed:
+            raise ValueError("індекс закрито")
 
 
+@timed
 def build_index(corpus_dir: Path, with_positions: bool = False) -> Index:
     """Будує індекс одним проходом по лінивому пайплайну з лаби 1."""
     postings = defaultdict(list)
@@ -61,8 +130,6 @@ def build_index(corpus_dir: Path, with_positions: bool = False) -> Index:
 
         docs.append(DocMeta(doc_id, doc.doc_id, str(doc.path), length))
 
-    # dict(...) прибирає поведінку defaultdict: пошук відсутнього терміна
-    # не створюватиме порожній запис в індексі
     return Index(
         dict(postings),
         docs,
@@ -73,14 +140,14 @@ def build_index(corpus_dir: Path, with_positions: bool = False) -> Index:
 def main():
     import time
 
-    from findex.storage import save  # імпорт тут, щоб уникнути циклу index <-> storage
+    from findex.storage import save
 
     parser = argparse.ArgumentParser(description="Побудова й збереження індексу")
     parser.add_argument("corpus", type=Path)
     parser.add_argument("--out", type=Path, help="куди зберегти індекс")
     parser.add_argument("--format", choices=["pickle", "array"], default="array")
     parser.add_argument("--positions", action="store_true",
-                        help="зберігати позиції токенів")
+                        help="зберігати позиції токенів (потрібні для фраз)")
     args = parser.parse_args()
 
     index, elapsed, peak = run_with_measurement(
@@ -103,9 +170,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # Запускаємо main із модуля findex.index, а не з __main__. Інакше класи
-    # Posting/DocMeta матимуть ім'я __main__.Posting, pickle запише саме його,
-    # і в іншому процесі (findex.search) load не знайде такий клас.
     from findex.index import main as _main
 
     _main()

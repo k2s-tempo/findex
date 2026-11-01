@@ -1,25 +1,31 @@
-"""
+﻿"""
 Збереження й завантаження індексу.
 
-Два формати:
   pickle - стандартна серіалізація Python (зберігає й позиції)
-  array  - власний бінарний формат на array('I') + struct (без позицій)
+  array  - власний бінарний формат на array('I') + struct
 
-Формат array (little-endian):
-  b"FDX1" | n_docs u32 | n_terms u32
+Формат array FDX2 (little-endian):
+  b"FDX2" | n_docs u32 | n_terms u32 | flags u32 (біт 0 = є позиції)
   n_docs  x [length u32 | name (u32 len + utf-8) | path (u32 len + utf-8)]
-  n_terms x [term (u32 len + utf-8) | n u32 | doc_ids n*u32 | tfs n*u32]
-doc_id документа = його порядковий номер у блоці документів.
+  n_terms x [term (u32 len + utf-8) | n u32 | doc_ids n*u32 | tfs n*u32
+             | якщо є позиції: sum(tfs)*u32 позицій]
+Позиції йдуть підряд у порядку постінгів; скільки їх у кожного постінга,
+відомо з його tf, тому окремі лічильники не потрібні.
+Старий формат FDX1 (без позицій і без flags) теж читається.
 """
 import pickle
 import struct
 import sys
 from array import array
+from contextlib import contextmanager
 from pathlib import Path
 
+from findex.decorators import timed
 from findex.index import DocMeta, Index, Posting
 
-MAGIC = b"FDX1"
+MAGIC_V1 = b"FDX1"
+MAGIC_V2 = b"FDX2"
+FLAG_POSITIONS = 1
 BIG_ENDIAN = sys.byteorder == "big"
 assert array("I").itemsize == 4, "очікується 4-байтовий array('I')"
 
@@ -48,24 +54,30 @@ def _pack_str(s: str) -> bytes:
     return struct.pack("<I", len(b)) + b
 
 
+def _u32_bytes(values) -> bytes:
+    a = array("I", values)
+    if BIG_ENDIAN:
+        a.byteswap()
+    return a.tobytes()
+
+
 def save_array(index: Index, path) -> None:
+    flags = FLAG_POSITIONS if index.positions is not None else 0
     with open(path, "wb") as f:
-        f.write(MAGIC)
-        f.write(struct.pack("<II", len(index.docs), len(index.postings)))
+        f.write(MAGIC_V2)
+        f.write(struct.pack("<III", len(index.docs), len(index.postings), flags))
         for d in index.docs:
             f.write(struct.pack("<I", d.length))
             f.write(_pack_str(d.name))
             f.write(_pack_str(d.path))
         for term, plist in index.postings.items():
-            ids = array("I", (p.doc_id for p in plist))
-            tfs = array("I", (p.tf for p in plist))
-            if BIG_ENDIAN:
-                ids.byteswap()
-                tfs.byteswap()
             f.write(_pack_str(term))
             f.write(struct.pack("<I", len(plist)))
-            f.write(ids.tobytes())
-            f.write(tfs.tobytes())
+            f.write(_u32_bytes(p.doc_id for p in plist))
+            f.write(_u32_bytes(p.tf for p in plist))
+            if flags & FLAG_POSITIONS:
+                per_doc = index.positions[term]
+                f.write(_u32_bytes(pos for p in plist for pos in per_doc[p.doc_id]))
 
 
 class _Reader:
@@ -95,11 +107,14 @@ class _Reader:
 
 def load_array(path) -> Index:
     r = _Reader(Path(path).read_bytes())
-    if r.buf[:4] != MAGIC:
-        raise ValueError("це не файл індексу findex (невірний magic)")
+    magic = r.buf[:4]
+    if magic not in (MAGIC_V1, MAGIC_V2):
+        raise ValueError("це не файл індексу findex (невірна сигнатура)")
     r.pos = 4
     n_docs = r.u32()
     n_terms = r.u32()
+    flags = r.u32() if magic == MAGIC_V2 else 0
+    has_positions = bool(flags & FLAG_POSITIONS)
 
     docs = []
     for doc_id in range(n_docs):
@@ -109,14 +124,22 @@ def load_array(path) -> Index:
         docs.append(DocMeta(doc_id, name, doc_path, length))
 
     postings = {}
+    positions = {} if has_positions else None
     for _ in range(n_terms):
         term = r.string()
         n = r.u32()
         ids = r.u32_array(n)
         tfs = r.u32_array(n)
         postings[term] = [Posting(d, t) for d, t in zip(ids, tfs)]
+        if has_positions:
+            flat = r.u32_array(sum(tfs))
+            per_doc, offset = {}, 0
+            for d, t in zip(ids, tfs):
+                per_doc[d] = flat[offset:offset + t].tolist()
+                offset += t
+            positions[term] = per_doc
 
-    return Index(postings, docs, None)
+    return Index(postings, docs, positions)
 
 
 # ---------- єдина точка входу ----------
@@ -125,8 +148,26 @@ def save(index: Index, path, fmt: str = "array") -> None:
     {"pickle": save_pickle, "array": save_array}[fmt](index, path)
 
 
+@timed
 def load(path, fmt: str = "auto") -> Index:
     if fmt == "auto":
         with open(path, "rb") as f:
-            fmt = "array" if f.read(4) == MAGIC else "pickle"
+            fmt = "array" if f.read(4) in (MAGIC_V1, MAGIC_V2) else "pickle"
     return load_array(path) if fmt == "array" else load_pickle(path)
+
+
+@contextmanager
+def open_index(path, fmt: str = "auto"):
+    """Контекстний менеджер: завантажує індекс і гарантовано закриває його.
+
+        with open_index("index.bin") as idx:
+            ...
+
+    Закриття (idx.close()) відбувається і при винятку всередині with:
+    звільняє пам'ять індексу й виконує зареєстровані on_close-дії (кеші).
+    """
+    index = load(path, fmt)
+    try:
+        yield index
+    finally:
+        index.close()
