@@ -10,7 +10,6 @@
 
 import json
 import logging
-import os
 import pickle
 import struct
 import sys
@@ -29,8 +28,9 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, T
 from rich.table import Table
 
 from findex.cache import cached_evaluator
+from findex.corpus import list_documents
 from findex.merge import Engine
-from findex.parallel import ExecutorName, build_parallel
+from findex.parallel import ExecutorChoice, build_parallel, resolve_executor
 from findex.query import Node, positive_terms, ranked_search
 from findex.scoring import ScorerName, make_scorer
 from findex.snippets import make_snippet
@@ -139,24 +139,40 @@ def index_cmd(
     ] = True,
     fmt: Annotated[SaveFormat, typer.Option("--format", "-f", help="Формат файлу індексу.")] = "array",
     executor: Annotated[
-        ExecutorName,
-        typer.Option("--executor", "-x", help="Як розпаралелити збірку: serial, threads або processes."),
-    ] = "serial",
+        ExecutorChoice,
+        typer.Option(
+            "--executor",
+            "-x",
+            help="auto (типово): процеси для великих корпусів, інакше serial; або serial, threads, processes.",
+        ),
+    ] = "auto",
     workers: Annotated[
         int | None,
         typer.Option(
-            "--workers", "-w", min=1, help="Кількість воркерів (типово: число ядер; для serial ігнорується)."
+            "--workers",
+            "-w",
+            min=1,
+            help="Кількість воркерів (типово: число ядер, не більше 4; для serial ігнорується).",
         ),
     ] = None,
 ) -> None:
     """Побудувати індекс корпусу й зберегти його у файл."""
     if not corpus.is_dir():
         fail(f"каталог корпусу не знайдено: {corpus}")
-    total = sum(1 for _ in corpus.rglob("*.txt"))
+    files = list_documents(corpus)
+    total = len(files)
     if total == 0:
         fail(f"у каталозі {corpus} немає жодного .txt-файлу")
 
-    n_workers = 1 if executor == "serial" else (workers or os.cpu_count() or 1)
+    corpus_bytes = sum(path.stat().st_size for path in files)
+    chosen, n_workers = resolve_executor(executor, workers, corpus_bytes)
+    log.info(
+        "виконавець: %s, воркерів: %d (запит: %s, корпус %.1f МБ)",
+        chosen,
+        n_workers,
+        executor,
+        corpus_bytes / 1048576,
+    )
     progress = Progress(
         TextColumn("{task.description}"),
         BarColumn(),
@@ -167,11 +183,11 @@ def index_cmd(
     started = time.perf_counter()
     try:
         with progress:
-            task = progress.add_task(f"Індексація ({executor}, воркерів: {n_workers})", total=total)
+            task = progress.add_task(f"Індексація ({chosen}, воркерів: {n_workers})", total=total)
             index = build_parallel(
                 corpus,
                 positions,
-                executor=executor,
+                executor=chosen,
                 workers=n_workers,
                 on_chunk=lambda n_docs: progress.advance(task, n_docs),
             )
@@ -182,7 +198,7 @@ def index_cmd(
         log.debug("воркер завершився аварійно", exc_info=True)
         fail("воркер завершився аварійно (перегляньте стек із -vv)")
     log.info(
-        "індекс збудовано за %.2f с (%s, воркерів: %d)", time.perf_counter() - started, executor, n_workers
+        "індекс збудовано за %.2f с (%s, воркерів: %d)", time.perf_counter() - started, chosen, n_workers
     )
 
     try:

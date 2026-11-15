@@ -20,3 +20,5 @@ index.pkl
 .coverage
 htmlcov/
 .ruff_cache/
+
+index*.bin

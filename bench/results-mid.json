@@ -1,0 +1,91 @@
+{
+  "machine": {
+    "python": "3.11.0",
+    "implementation": "CPython",
+    "gil": "n/a (< 3.13)",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+    "cpu_count": 16
+  },
+  "positions": true,
+  "runs": [
+    {
+      "executor": "serial",
+      "workers": 1,
+      "wall": 3.0780032000002393,
+      "cpu": 3.03125,
+      "rss_mb": 196.1875,
+      "map": 2.8957808000013756,
+      "merge": 0.005497399997693719
+    },
+    {
+      "executor": "serial",
+      "workers": 1,
+      "wall": 2.8924646000014036,
+      "cpu": 2.859375,
+      "rss_mb": 195.9296875,
+      "map": 2.718651099999988,
+      "merge": 0.005150699998921482
+    },
+    {
+      "executor": "serial",
+      "workers": 1,
+      "wall": 2.877425200000289,
+      "cpu": 2.828125,
+      "rss_mb": 196.5078125,
+      "map": 2.7100825000015902,
+      "merge": 0.004662600000301609
+    },
+    {
+      "executor": "processes",
+      "workers": 4,
+      "wall": 1.8597764000005554,
+      "cpu": 4.109375,
+      "rss_mb": 242.39453125,
+      "map": 1.6532035999989603,
+      "merge": 0.0945960000026389
+    },
+    {
+      "executor": "processes",
+      "workers": 4,
+      "wall": 1.8635463000027812,
+      "cpu": 4.125,
+      "rss_mb": 242.390625,
+      "map": 1.670987100002094,
+      "merge": 0.08715740000116057
+    },
+    {
+      "executor": "processes",
+      "workers": 4,
+      "wall": 1.8656629000033718,
+      "cpu": 4.296875,
+      "rss_mb": 242.19140625,
+      "map": 1.6613264000006893,
+      "merge": 0.09639949999836972
+    }
+  ],
+  "median": [
+    {
+      "executor": "serial",
+      "workers": 1,
+      "runs": 3,
+      "wall": 2.8924646000014036,
+      "cpu": 2.859375,
+      "rss_mb": 196.1875,
+      "map": 2.718651099999988,
+      "merge": 0.005150699998921482,
+      "speedup": 1.0
+    },
+    {
+      "executor": "processes",
+      "workers": 4,
+      "runs": 3,
+      "wall": 1.8635463000027812,
+      "cpu": 4.125,
+      "rss_mb": 242.390625,
+      "map": 1.6613264000006893,
+      "merge": 0.0945960000026389,
+      "speedup": 1.5521291850903232
+    }
+  ]
+}

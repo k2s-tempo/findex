@@ -13,6 +13,7 @@
 """
 
 import multiprocessing
+import os
 import time
 from collections.abc import Callable, MutableMapping, Sequence
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor, as_completed
@@ -23,13 +24,42 @@ from findex.corpus import list_documents
 from findex.index import Index, PartialIndex, build_partial, merge
 
 ExecutorName = Literal["serial", "threads", "processes"]
+ExecutorChoice = Literal["auto", "serial", "threads", "processes"]  # що можна вказати в CLI
 EXECUTORS: tuple[ExecutorName, ...] = ("serial", "threads", "processes")
+
+# Пороги вибрані за бенчмарком (AMD Ryzen 7 5800X, 8 ядер / 16 потоків, Windows, Python 3.11):
+# 4 процеси дали 1,03× на 6 МБ, 1,55× на 19 МБ і 1,82× на 63 МБ, а 8 і 16 воркерів були
+# повільнішими за 4, бо батько послідовно розпаковує результати воркерів. Для іншої машини
+# числа інші: перемірте скриптом scripts/bench_parallel.py.
+AUTO_MIN_BYTES = 8 * 1024 * 1024  # менший корпус: запуск процесів не окупається
+MAX_DEFAULT_WORKERS = 4
 
 # Шматків більше, ніж воркерів: файли дуже різні за розміром (одні діалоги в десятки
 # разів довші за інші), і воркер, що швидко закінчив, бере наступний шматок.
 CHUNKS_PER_WORKER = 4
 
 Chunk = tuple[int, list[Path]]  # (doc_id першого документа, шляхи шматка)
+
+
+def default_workers() -> int:
+    """Типова кількість воркерів: число ядер, але не більше MAX_DEFAULT_WORKERS."""
+    return max(1, min(os.cpu_count() or 1, MAX_DEFAULT_WORKERS))
+
+
+def resolve_executor(
+    choice: ExecutorChoice, workers: int | None, corpus_bytes: int
+) -> tuple[ExecutorName, int]:
+    """Перетворює вибір користувача на конкретного виконавця й число воркерів.
+
+    auto: процеси для корпусу від AUTO_MIN_BYTES, інакше serial. Для serial воркерів завжди 1.
+    """
+    if choice == "auto":
+        resolved: ExecutorName = "processes" if corpus_bytes >= AUTO_MIN_BYTES else "serial"
+    else:
+        resolved = choice
+    if resolved == "serial":
+        return "serial", 1
+    return resolved, workers or default_workers()
 
 
 def plan_chunks(paths: Sequence[Path], n_chunks: int) -> list[Chunk]:
