@@ -33,8 +33,21 @@ def strip_boilerplate(raw_text: str) -> str:
 _strip_boilerplate = strip_boilerplate  # старе ім'я: його імпортують dev-скрипти в scripts/
 
 
+def list_documents(corpus_dir: Path) -> list[Path]:
+    """Шляхи всіх .txt з corpus_dir (з підпапками) у відсортованому порядку.
+
+    Позиція шляху в цьому списку це doc_id документа в індексі.
+    """
+    return sorted(corpus_dir.rglob("*.txt"))
+
+
+def read_document(path: Path) -> Document:
+    """Читає один файл і відрізає шапку та підвал Gutenberg."""
+    raw_text = path.read_text(encoding="utf-8")
+    return Document(doc_id=path.stem, path=path, text=strip_boilerplate(raw_text))
+
+
 def iter_documents(corpus_dir: Path) -> Iterator[Document]:
     """Ліниво читає всі .txt з corpus_dir (з підпапками) по одному, у відсортованому порядку."""
-    for path in sorted(corpus_dir.rglob("*.txt")):
-        raw_text = path.read_text(encoding="utf-8")
-        yield Document(doc_id=path.stem, path=path, text=strip_boilerplate(raw_text))
+    for path in list_documents(corpus_dir):
+        yield read_document(path)

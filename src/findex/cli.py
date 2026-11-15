@@ -10,11 +10,13 @@
 
 import json
 import logging
+import os
 import pickle
 import struct
 import sys
 import time
 from collections import Counter
+from concurrent.futures import BrokenExecutor
 from dataclasses import asdict, dataclass
 from importlib import metadata
 from pathlib import Path
@@ -27,8 +29,8 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, T
 from rich.table import Table
 
 from findex.cache import cached_evaluator
-from findex.index import build_index
 from findex.merge import Engine
+from findex.parallel import ExecutorName, build_parallel
 from findex.query import Node, positive_terms, ranked_search
 from findex.scoring import ScorerName, make_scorer
 from findex.snippets import make_snippet
@@ -136,6 +138,16 @@ def index_cmd(
         ),
     ] = True,
     fmt: Annotated[SaveFormat, typer.Option("--format", "-f", help="Формат файлу індексу.")] = "array",
+    executor: Annotated[
+        ExecutorName,
+        typer.Option("--executor", "-x", help="Як розпаралелити збірку: serial, threads або processes."),
+    ] = "serial",
+    workers: Annotated[
+        int | None,
+        typer.Option(
+            "--workers", "-w", min=1, help="Кількість воркерів (типово: число ядер; для serial ігнорується)."
+        ),
+    ] = None,
 ) -> None:
     """Побудувати індекс корпусу й зберегти його у файл."""
     if not corpus.is_dir():
@@ -144,6 +156,7 @@ def index_cmd(
     if total == 0:
         fail(f"у каталозі {corpus} немає жодного .txt-файлу")
 
+    n_workers = 1 if executor == "serial" else (workers or os.cpu_count() or 1)
     progress = Progress(
         TextColumn("{task.description}"),
         BarColumn(),
@@ -151,9 +164,26 @@ def index_cmd(
         TimeElapsedColumn(),
         console=Console(stderr=True),
     )
-    with progress:
-        task = progress.add_task("Індексація", total=total)
-        index = build_index(corpus, positions, on_document=lambda _meta: progress.advance(task))
+    started = time.perf_counter()
+    try:
+        with progress:
+            task = progress.add_task(f"Індексація ({executor}, воркерів: {n_workers})", total=total)
+            index = build_parallel(
+                corpus,
+                positions,
+                executor=executor,
+                workers=n_workers,
+                on_chunk=lambda n_docs: progress.advance(task, n_docs),
+            )
+    except (OSError, UnicodeDecodeError) as e:
+        log.debug("збірка індексу не вдалась", exc_info=True)  # стек воркера видно з -vv
+        fail(f"не вдалося прочитати корпус: {e}")
+    except BrokenExecutor:
+        log.debug("воркер завершився аварійно", exc_info=True)
+        fail("воркер завершився аварійно (перегляньте стек із -vv)")
+    log.info(
+        "індекс збудовано за %.2f с (%s, воркерів: %d)", time.perf_counter() - started, executor, n_workers
+    )
 
     try:
         save(index, out, fmt)

@@ -6,12 +6,12 @@ len(index) - кількість термінів, term in index, index[term], fo
 """
 
 from collections import Counter, defaultdict
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from findex.corpus import iter_documents
+from findex.corpus import list_documents, read_document
 from findex.decorators import timed
 from findex.tokenizer import tokenize
 
@@ -109,18 +109,36 @@ class Index(Mapping[str, list[Posting]]):
             raise ValueError("індекс закрито")
 
 
-@timed
-def build_index(
-    corpus_dir: Path,
+@dataclass(slots=True)
+class PartialIndex:
+    """Індекс шматка корпусу: документи з doc_id від start_id до start_id + len(docs) - 1.
+
+    Саме це воркер повертає батьківському процесу (через pickle).
+    """
+
+    start_id: int
+    docs: list[DocMeta]
+    postings: dict[str, list[Posting]]
+    positions: dict[str, dict[int, list[int]]] | None
+
+
+def build_partial(
+    doc_paths: Sequence[Path],
+    start_id: int = 0,
     with_positions: bool = False,
     on_document: Callable[[DocMeta], None] | None = None,
-) -> Index:
-    """Будує індекс одним проходом по лінивому пайплайну з лаби 1."""
+) -> PartialIndex:
+    """Індексує шматок корпусу. Функція рівня модуля: її можна віддати потоку чи процесу.
+
+    Приймає шляхи, а не прочитані документи: файли читає сам воркер. doc_id шматка
+    починаються зі start_id, тож діапазони різних шматків не перетинаються.
+    """
     postings: defaultdict[str, list[Posting]] = defaultdict(list)
     positions: defaultdict[str, dict[int, list[int]]] = defaultdict(dict)
     docs: list[DocMeta] = []
 
-    for doc_id, doc in enumerate(iter_documents(corpus_dir)):
+    for doc_id, path in enumerate(doc_paths, start=start_id):
+        doc = read_document(path)
         if with_positions:
             local: defaultdict[str, list[int]] = defaultdict(list)
             for pos, token in enumerate(tokenize(doc.text)):
@@ -141,4 +159,54 @@ def build_index(
 
     # dict(...) прибирає поведінку defaultdict: пошук відсутнього терміна
     # не створюватиме порожній запис в індексі
-    return Index(dict(postings), docs, dict(positions) if with_positions else None)
+    return PartialIndex(start_id, docs, dict(postings), dict(positions) if with_positions else None)
+
+
+def merge(partials: Iterable[PartialIndex]) -> Index:
+    """Зливає часткові індекси в один.
+
+    doc_id мають утворювати суцільний діапазон 0..N-1 без дірок і перекриттів. Порядок
+    partials не важливий (сортуємо за start_id). Діапазони різних шматків упорядковані,
+    тож постінги кожного терміна просто дописуються один за одним і лишаються
+    відсортованими. Споживає partials: списки постінгів переходять в Index без копіювання.
+    """
+    ordered = sorted(partials, key=lambda part: part.start_id)
+    with_positions = bool(ordered) and ordered[0].positions is not None
+    postings: dict[str, list[Posting]] = {}
+    positions: dict[str, dict[int, list[int]]] = {}
+    docs: list[DocMeta] = []
+
+    for part in ordered:
+        if (part.positions is not None) != with_positions:
+            raise ValueError("часткові індекси змішують режими з позиціями й без")
+        if part.start_id != len(docs):
+            raise ValueError(
+                f"doc_id мають бути суцільними: очікувався {len(docs)}, а шматок починається з {part.start_id}"
+            )
+        docs.extend(part.docs)
+        for term, plist in part.postings.items():
+            known = postings.get(term)
+            if known is None:
+                postings[term] = plist
+            else:
+                known.extend(plist)
+        if part.positions is not None:
+            for term, per_doc in part.positions.items():
+                known_positions = positions.get(term)
+                if known_positions is None:
+                    positions[term] = per_doc
+                else:
+                    known_positions.update(per_doc)
+
+    return Index(postings, docs, positions if with_positions else None)
+
+
+@timed
+def build_index(
+    corpus_dir: Path,
+    with_positions: bool = False,
+    on_document: Callable[[DocMeta], None] | None = None,
+) -> Index:
+    """Послідовна збірка: один шматок на весь корпус, тобто merge([build_partial(усі шляхи)])."""
+    paths = list_documents(corpus_dir)
+    return merge([build_partial(paths, 0, with_positions, on_document)])
