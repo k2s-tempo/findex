@@ -15,3 +15,8 @@ index.bin
 index.pkl
 
 .vs/
+
+.hypothesis/
+.coverage
+htmlcov/
+.ruff_cache/

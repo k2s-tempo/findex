@@ -1,8 +1,7 @@
-import pytest
+﻿import pytest
 
 from findex.index import build_index
-from findex.query import (And, Not, Or, Phrase, Term, parse, positive_terms,
-                          ranked_search)
+from findex.query import And, Not, Or, Phrase, Term, parse, positive_terms, ranked_search
 from findex.scoring import BM25
 
 a, b, c, d = Term("a"), Term("b"), Term("c"), Term("d")
@@ -77,7 +76,7 @@ def test_str_roundtrip(tree):
 def test_nodes_are_hashable_and_frozen():
     assert hash(And(a, b)) == hash(And(a, b))
     assert len({And(a, b), And(a, b), Or(a, b)}) == 2
-    with pytest.raises(Exception):
+    with pytest.raises(AttributeError):
         a.text = "z"
 
 

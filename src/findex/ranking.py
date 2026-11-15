@@ -1,16 +1,13 @@
 """
 Ранжований пошук: накопичуємо бали по документах і беремо топ-k.
 """
-import argparse
 import heapq
-import time
 from collections import defaultdict
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
-from pathlib import Path
 
-from findex.scoring import SCORERS, Scorer
-from findex.storage import open_index
-from findex.tokenizer import tokenize
+from findex.index import Index
+from findex.scoring import Scorer
 
 
 @dataclass(frozen=True, order=True)
@@ -20,19 +17,26 @@ class SearchResult:
     doc_id і name в порівнянні не беруть участі, тому max/sorted/nlargest
     впорядковують результати саме за балом.
     """
+
     score: float
     doc_id: int = field(compare=False)
     name: str = field(compare=False, default="")
 
 
-def rank(index, terms, scorer: Scorer, k: int = 10, candidates=None):
+def rank(
+    index: Index,
+    terms: Iterable[str],
+    scorer: Scorer,
+    k: int = 10,
+    candidates: Collection[int] | None = None,
+) -> list[SearchResult]:
     """Топ-k документів за сумою балів термінів запиту.
 
     terms      - уже нормалізовані терміни (дублікати ігноруються)
     candidates - множина doc_id, з якої дозволено брати результати
-                 (Boolean-фільтр з кроку 3); None = усі документи
+                 (Boolean-фільтр); None = усі документи
     """
-    scores = defaultdict(float)
+    scores: defaultdict[int, float] = defaultdict(float)
     for term in dict.fromkeys(terms):          # унікальні, у порядку появи
         plist = index.postings.get(term)
         if not plist:
@@ -50,26 +54,3 @@ def rank(index, terms, scorer: Scorer, k: int = 10, candidates=None):
         for doc_id, score in sorted(scores.items())
     )
     return heapq.nlargest(k, results)
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Ранжований пошук")
-    parser.add_argument("index", type=Path)
-    parser.add_argument("query")
-    parser.add_argument("--scorer", choices=SCORERS, default="bm25")
-    parser.add_argument("-k", type=int, default=10)
-    args = parser.parse_args()
-
-    scorer = SCORERS[args.scorer]()
-    with open_index(args.index) as idx:
-        terms = list(tokenize(args.query))
-        start = time.perf_counter()
-        results = rank(idx, terms, scorer, args.k)
-        elapsed = time.perf_counter() - start
-        print(f"{scorer}  |  {len(results)} результатів, {elapsed * 1000:.3f} мс")
-        for i, r in enumerate(results, 1):
-            print(f"{i:>2}. {r.score:7.3f}  {r.name}  ({idx.docs[r.doc_id].length} токенів)")
-
-
-if __name__ == "__main__":
-    main()

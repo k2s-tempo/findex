@@ -1,6 +1,6 @@
-import pytest
+﻿import pytest
+from evaluation import LABELED, evaluate, precision_at_k
 
-from findex.evaluation import LABELED, evaluate, precision_at_k
 from findex.index import build_index
 from findex.scoring import BM25
 

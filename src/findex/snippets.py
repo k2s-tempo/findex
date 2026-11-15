@@ -3,7 +3,7 @@
 з підсвіткою знайдених термінів.
 
 Алгоритм:
-  1. читаємо файл і ріжемо шапку Gutenberg (_strip_boilerplate) так само,
+  1. читаємо файл і ріжемо шапку Gutenberg (strip_boilerplate) так само,
      як при індексації, щоб токенізація збігалася;
   2. знаходимо символьні межі токенів тим самим регулярним виразом токенізатора
      (на NFKC-тексті, без втрати регістру для показу);
@@ -17,23 +17,27 @@ import math
 import re
 import unicodedata
 from collections import Counter
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from findex.corpus import _strip_boilerplate
-from findex.tokenizer import _TOKEN_RE
+from findex.corpus import strip_boilerplate
+from findex.index import Index
+from findex.tokenizer import TOKEN_RE
 
 DEFAULT_RADIUS = 80
 DEFAULT_MARKS = ("**", "**")
 
+Match = tuple[int, int, str]   # (початок, кінець, термін)
+
 
 @dataclass(frozen=True)
 class Snippet:
-    text: str       # готовий рядок з маркерами підсвітки
-    matched: tuple  # які терміни запиту реально потрапили у вікно
+    text: str                 # готовий рядок з маркерами підсвітки
+    matched: tuple[str, ...]  # які терміни запиту реально потрапили у вікно
 
 
-def prepare_text(raw: str):
+def prepare_text(raw: str) -> tuple[str, str]:
     """(текст для показу, текст для пошуку). Довжини гарантовано однакові."""
     normalized = unicodedata.normalize("NFKC", raw)
     lowered = normalized.lower()
@@ -42,19 +46,19 @@ def prepare_text(raw: str):
     return normalized, lowered
 
 
-def find_matches(lowered: str, terms) -> list:
+def find_matches(lowered: str, terms: Iterable[str]) -> list[Match]:
     """[(start, end, term)] для токенів тексту, що є серед термінів запиту."""
-    terms = set(terms)
-    return [(m.start(), m.end(), m.group())
-            for m in _TOKEN_RE.finditer(lowered) if m.group() in terms]
+    wanted = set(terms)
+    return [(m.start(), m.end(), m.group()) for m in TOKEN_RE.finditer(lowered) if m.group() in wanted]
 
 
-def best_match(matches, weights, radius: int = DEFAULT_RADIUS) -> int:
+def best_match(matches: Sequence[Match], weights: Mapping[str, float], radius: int = DEFAULT_RADIUS) -> int:
     """Індекс найкращого входження за один прохід (два вказівники, O(m))."""
     n = len(matches)
-    counts = Counter()
+    counts: Counter[str] = Counter()
     left = right = 0
-    best_i, best_key = 0, None
+    best_i = 0
+    best_key: tuple[float, int, int] | None = None
     for i, (s, e, _) in enumerate(matches):
         lo, hi = s - radius, e + radius
         while right < n and matches[right][0] <= hi:
@@ -70,8 +74,13 @@ def best_match(matches, weights, radius: int = DEFAULT_RADIUS) -> int:
     return best_i
 
 
-def render(text: str, matches, best: int, radius: int = DEFAULT_RADIUS,
-           marks=DEFAULT_MARKS) -> Snippet:
+def render(
+    text: str,
+    matches: Sequence[Match],
+    best: int,
+    radius: int = DEFAULT_RADIUS,
+    marks: tuple[str, str] = DEFAULT_MARKS,
+) -> Snippet:
     s, e, _ = matches[best]
     start, end = max(0, s - radius), min(len(text), e + radius)
 
@@ -85,7 +94,9 @@ def render(text: str, matches, best: int, radius: int = DEFAULT_RADIUS,
         if cut >= 0:
             end = e + cut
 
-    pieces, pos, found = [], start, set()
+    pieces: list[str] = []
+    pos = start
+    found: set[str] = set()
     for ms, me, term in matches:
         if ms >= start and me <= end:
             pieces.append(text[pos:ms])
@@ -100,26 +111,37 @@ def render(text: str, matches, best: int, radius: int = DEFAULT_RADIUS,
     return Snippet(f"{prefix}{body}{suffix}", tuple(sorted(found)))
 
 
-def snippet_from_text(raw_text: str, terms, weights=None, radius: int = DEFAULT_RADIUS,
-                      marks=DEFAULT_MARKS) -> Snippet:
+def snippet_from_text(
+    raw_text: str,
+    terms: Iterable[str],
+    weights: Mapping[str, float] | None = None,
+    radius: int = DEFAULT_RADIUS,
+    marks: tuple[str, str] = DEFAULT_MARKS,
+) -> Snippet:
     """Чиста функція (без файлів): зручна для тестів."""
     text, lowered = prepare_text(raw_text)
-    terms = set(terms)
-    weights = weights or {t: 1.0 for t in terms}
-    matches = find_matches(lowered, terms)
+    wanted = set(terms)
+    weight_map: Mapping[str, float] = weights if weights else {t: 1.0 for t in wanted}
+    matches = find_matches(lowered, wanted)
     if not matches:                            # напр. запит лише з NOT: показати початок
         head = " ".join(text[:2 * radius].split())
         return Snippet(head + ("..." if len(text) > 2 * radius else ""), ())
-    return render(text, matches, best_match(matches, weights, radius), radius, marks)
+    return render(text, matches, best_match(matches, weight_map, radius), radius, marks)
 
 
-def make_snippet(index, doc_id: int, terms, radius: int = DEFAULT_RADIUS,
-                 marks=DEFAULT_MARKS) -> Snippet:
+def make_snippet(
+    index: Index,
+    doc_id: int,
+    terms: Iterable[str],
+    radius: int = DEFAULT_RADIUS,
+    marks: tuple[str, str] = DEFAULT_MARKS,
+) -> Snippet:
     """Сніпет документа doc_id з індексу для термінів запиту."""
     meta = index.docs[doc_id]
     try:
-        raw = _strip_boilerplate(Path(meta.path).read_text(encoding="utf-8"))
+        raw = strip_boilerplate(Path(meta.path).read_text(encoding="utf-8"))
     except OSError:
         return Snippet("(файл документа недоступний)", ())
-    weights = {t: math.log(1 + index.num_docs / max(1, index.df(t))) for t in set(terms)}
-    return snippet_from_text(raw, terms, weights, radius, marks)
+    wanted = set(terms)
+    weights = {t: math.log(1 + index.num_docs / max(1, index.df(t))) for t in wanted}
+    return snippet_from_text(raw, wanted, weights, radius, marks)

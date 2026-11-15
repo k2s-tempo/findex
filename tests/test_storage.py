@@ -80,8 +80,7 @@ def test_open_index_closes_on_exit(tmp_path, index):
 def test_open_index_closes_on_exception(tmp_path, index):
     save(index, tmp_path / "i.bin", "array")
     holder = {}
-    with pytest.raises(RuntimeError):
-        with open_index(tmp_path / "i.bin") as idx:
-            holder["idx"] = idx
-            raise RuntimeError("boom")
+    with pytest.raises(RuntimeError), open_index(tmp_path / "i.bin") as idx:
+        holder["idx"] = idx
+        raise RuntimeError("boom")
     assert holder["idx"].closed

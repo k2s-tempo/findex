@@ -1,40 +1,40 @@
 """
-Збір статистики корпусу за ОДИН прохід, лінива (генераторна) версія.
-
-Вимірює:
-- кількість документів
-- загальну кількість токенів
-- розмір словника (унікальні токени)
-- топ-50 найчастіших термів
-- час виконання
-- пікову пам'ять (tracemalloc)
+Статистика корпусу за ОДИН прохід (лаба 1) і допоміжний замір часу та пікової пам'яті.
 """
 import time
 import tracemalloc
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypedDict, TypeVar
 
 from findex.corpus import iter_documents
 from findex.tokenizer import tokenize
 
+A = TypeVar("A")
+R = TypeVar("R")
 
-def compute_stats_lazy(corpus_dir: Path):
-    """
-    Лінива версія: документи й токени обробляються по одному,
-    ніколи не існуючи всі одразу в пам'яті як список.
-    Єдина структура, що росте, — Counter (це і є "словник" статистики,
-    його розмір неминучий — саме такий є результат задачі).
+
+class CorpusStats(TypedDict):
+    doc_count: int
+    token_count: int
+    vocab_size: int
+    top_50: list[tuple[str, int]]
+
+
+def compute_stats_lazy(corpus_dir: Path) -> CorpusStats:
+    """Лінива версія: документи й токени обробляються по одному.
+
+    Єдина структура, що росте, - Counter (результат задачі, а не копія вхідних даних).
     """
     doc_count = 0
     token_count = 0
-    term_freq = Counter()
-
-    for doc in iter_documents(corpus_dir):     # генератор — 1 документ за раз
+    term_freq: Counter[str] = Counter()
+    for doc in iter_documents(corpus_dir):     # генератор - 1 документ за раз
         doc_count += 1
-        for token in tokenize(doc.text):        # генератор — 1 токен за раз
+        for token in tokenize(doc.text):        # генератор - 1 токен за раз
             token_count += 1
             term_freq[token] += 1
-
     return {
         "doc_count": doc_count,
         "token_count": token_count,
@@ -43,29 +43,12 @@ def compute_stats_lazy(corpus_dir: Path):
     }
 
 
-def run_with_measurement(corpus_dir: Path, compute_fn):
-    """Обгортка: запускає compute_fn, вимірює час і піковий tracemalloc."""
+def run_with_measurement(arg: A, compute_fn: Callable[[A], R]) -> tuple[R, float, int]:
+    """Запускає compute_fn(arg) і повертає (результат, секунди, піковий tracemalloc у байтах)."""
     tracemalloc.start()
     start_time = time.perf_counter()
-
-    result = compute_fn(corpus_dir)
-
+    result = compute_fn(arg)
     elapsed = time.perf_counter() - start_time
-    current, peak = tracemalloc.get_traced_memory()
+    _current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-
     return result, elapsed, peak
-
-
-if __name__ == "__main__":
-    corpus_dir = Path("data/raw")
-    result, elapsed, peak = run_with_measurement(corpus_dir, compute_stats_lazy)
-
-    print(f"Документів: {result['doc_count']}")
-    print(f"Токенів: {result['token_count']}")
-    print(f"Розмір словника: {result['vocab_size']}")
-    print(f"Час: {elapsed:.4f} с")
-    print(f"Пікова пам'ять: {peak / 1024:.1f} КБ ({peak / 1024 / 1024:.3f} МБ)")
-    print("\nТоп-50 термів:")
-    for term, freq in result["top_50"]:
-        print(f"  {term}: {freq}")

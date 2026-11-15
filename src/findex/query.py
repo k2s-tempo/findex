@@ -18,72 +18,75 @@
 
 Вузли - frozen dataclass-и: порівнюються за значенням (a == b), хешуються, а також
 підтримують оператори Python: Term("a") & ~Term("b") | Term("c").
+Виконання (evaluate) працює у двох режимах: merge (два вказівники) і set (множини).
 """
-import argparse
-import logging
 import re
-import time
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from typing import Literal
 
-from findex.cache import cached_evaluator
 from findex.decorators import timed
+from findex.index import Index
+from findex.merge import Engine, difference, intersect, union
 from findex.ranking import SearchResult, rank
-from findex.scoring import SCORERS
-from findex.search import merge_and, merge_diff, merge_or
-from findex.snippets import make_snippet
-from findex.storage import open_index
+from findex.scoring import Scorer
 from findex.tokenizer import tokenize
 
+
+class EmptyQueryError(ValueError):
+    """Запит не містить жодного терміна або оператора."""
 
 
 # ======================= вузли дерева =======================
 
-class Node:
+class Node(ABC):
     """Спільна база: оператори й evaluate. Самі вузли - dataclass-и."""
 
-    def __and__(self, other):
+    def __and__(self, other: "Node") -> "And":
         return And(self, other)
 
-    def __or__(self, other):
+    def __or__(self, other: "Node") -> "Or":
         return Or(self, other)
 
-    def __invert__(self):
+    def __invert__(self) -> "Not":
         return Not(self)
 
-    def evaluate(self, index) -> list[int]:
+    @abstractmethod
+    def evaluate(self, index: Index, engine: Engine = "merge") -> list[int]:
         """Відсортований список doc_id, що задовольняють вузол."""
-        raise NotImplementedError
 
 
 @dataclass(frozen=True)
 class Term(Node):
     text: str
 
-    def evaluate(self, index):
+    def evaluate(self, index: Index, engine: Engine = "merge") -> list[int]:
         return [p.doc_id for p in index.postings.get(self.text, ())]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.text
 
 
 @dataclass(frozen=True)
 class Phrase(Node):
-    terms: tuple
+    terms: tuple[str, ...]
 
-    def evaluate(self, index):
-        if not index.has_positions:
-            raise ValueError("фрази потребують індексу з позиціями "
-                             "(побудуйте його з прапорцем --positions)")
+    def evaluate(self, index: Index, engine: Engine = "merge") -> list[int]:
+        positions = index.positions
+        if positions is None:
+            raise ValueError(
+                "фрази потребують індексу з позиціями (побудуйте його з прапорцем --positions)"
+            )
         first, *rest = self.terms
-        docs = Term(first).evaluate(index)
+        docs = Term(first).evaluate(index, engine)
         for t in rest:
-            docs = merge_and(docs, Term(t).evaluate(index))
-        out = []
+            docs = intersect(docs, Term(t).evaluate(index, engine), engine)
+        out: list[int] = []
         for doc_id in docs:
-            starts = set(index.positions[first][doc_id])
+            starts = set(positions[first][doc_id])
             for offset, t in enumerate(rest, 1):
-                there = set(index.positions[t][doc_id])
+                there = set(positions[t][doc_id])
                 starts = {s for s in starts if s + offset in there}
                 if not starts:
                     break
@@ -91,7 +94,7 @@ class Phrase(Node):
                 out.append(doc_id)
         return out
 
-    def __str__(self):
+    def __str__(self) -> str:
         return '"' + " ".join(self.terms) + '"'
 
 
@@ -100,10 +103,10 @@ class And(Node):
     left: Node
     right: Node
 
-    def evaluate(self, index):
-        return merge_and(self.left.evaluate(index), self.right.evaluate(index))
+    def evaluate(self, index: Index, engine: Engine = "merge") -> list[int]:
+        return intersect(self.left.evaluate(index, engine), self.right.evaluate(index, engine), engine)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.left} AND {self.right})"
 
 
@@ -112,10 +115,10 @@ class Or(Node):
     left: Node
     right: Node
 
-    def evaluate(self, index):
-        return merge_or(self.left.evaluate(index), self.right.evaluate(index))
+    def evaluate(self, index: Index, engine: Engine = "merge") -> list[int]:
+        return union(self.left.evaluate(index, engine), self.right.evaluate(index, engine), engine)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.left} OR {self.right})"
 
 
@@ -123,14 +126,14 @@ class Or(Node):
 class Not(Node):
     child: Node
 
-    def evaluate(self, index):
-        return merge_diff(range(index.num_docs), self.child.evaluate(index))
+    def evaluate(self, index: Index, engine: Engine = "merge") -> list[int]:
+        return difference(range(index.num_docs), self.child.evaluate(index, engine), engine)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"NOT {self.child}"
 
 
-def positive_terms(node) -> list[str]:
+def positive_terms(node: Node) -> list[str]:
     """Терміни, що дають внесок у рейтинг: усе, що не під NOT."""
     if isinstance(node, Term):
         return [node.text]
@@ -143,98 +146,113 @@ def positive_terms(node) -> list[str]:
 
 # ======================= лексер =======================
 
+@dataclass(frozen=True)
+class _Tok:
+    kind: Literal["LPAREN", "RPAREN", "TERM", "PHRASE", "OP"]
+    text: str = ""
+    terms: tuple[str, ...] = ()
+
+
 _LEX_RE = re.compile(r'"[^"]*"|\(|\)|"|[^\s()"]+')
 _OPS = {"AND", "OR", "NOT"}
 
 
-def _lex(query: str):
-    for raw in _LEX_RE.findall(query):
+def _lex(query: str) -> Iterator[_Tok]:
+    for match in _LEX_RE.finditer(query):
+        raw = match.group()
         if raw == '"':
             raise ValueError("незакриті лапки")
         if raw == "(":
-            yield ("LPAREN", raw)
+            yield _Tok("LPAREN", raw)
         elif raw == ")":
-            yield ("RPAREN", raw)
+            yield _Tok("RPAREN", raw)
         elif raw.startswith('"'):
             terms = tuple(tokenize(raw[1:-1]))
             if not terms:
                 raise ValueError("порожня фраза")
-            yield ("TERM", terms[0]) if len(terms) == 1 else ("PHRASE", terms)
+            yield _Tok("TERM", terms[0]) if len(terms) == 1 else _Tok("PHRASE", terms=terms)
         elif raw in _OPS:
-            yield ("OP", raw)
+            yield _Tok("OP", raw)
         else:
             for tok in tokenize(raw):   # слово може дати 0, 1 або кілька токенів
-                yield ("TERM", tok)
+                yield _Tok("TERM", tok)
 
 
 # ======================= рекурсивний спуск =======================
 
 class _Parser:
-    def __init__(self, tokens):
+    def __init__(self, tokens: list[_Tok]) -> None:
         self.toks = tokens
         self.i = 0
 
-    def peek(self):
+    def peek(self) -> _Tok | None:
         return self.toks[self.i] if self.i < len(self.toks) else None
 
-    def next(self):
+    def next(self) -> _Tok | None:
         tok = self.peek()
         self.i += 1
         return tok
 
-    def parse(self):
+    def _peek_op(self, name: str) -> bool:
+        tok = self.peek()
+        return tok is not None and tok.kind == "OP" and tok.text == name
+
+    def parse(self) -> Node:
         if not self.toks:
-            raise ValueError("порожній запит")
+            raise EmptyQueryError("порожній запит")
         node = self.or_expr()
-        if self.peek() is not None:
-            raise ValueError("зайва закриваюча дужка" if self.peek()[0] == "RPAREN"
-                             else f"несподіваний елемент: {self.peek()[1]}")
+        leftover = self.peek()
+        if leftover is not None:
+            raise ValueError(
+                "зайва закриваюча дужка" if leftover.kind == "RPAREN"
+                else f"несподіваний елемент: {leftover.text}"
+            )
         return node
 
-    def or_expr(self):
+    def or_expr(self) -> Node:
         node = self.and_expr()
-        while self.peek() == ("OP", "OR"):
+        while self._peek_op("OR"):
             self.next()
             node = Or(node, self.and_expr())
         return node
 
-    def _starts_operand(self, tok):
+    def _starts_operand(self, tok: _Tok | None) -> bool:
         return tok is not None and (
-            tok[0] in ("TERM", "PHRASE", "LPAREN") or tok == ("OP", "NOT"))
+            tok.kind in ("TERM", "PHRASE", "LPAREN") or (tok.kind == "OP" and tok.text == "NOT")
+        )
 
-    def and_expr(self):
+    def and_expr(self) -> Node:
         node = self.not_expr()
         while True:
-            tok = self.peek()
-            if tok == ("OP", "AND"):
+            if self._peek_op("AND"):
                 self.next()
                 node = And(node, self.not_expr())
-            elif self._starts_operand(tok):          # неявний AND
+            elif self._starts_operand(self.peek()):          # неявний AND
                 node = And(node, self.not_expr())
             else:
                 return node
 
-    def not_expr(self):
-        if self.peek() == ("OP", "NOT"):
+    def not_expr(self) -> Node:
+        if self._peek_op("NOT"):
             self.next()
             return Not(self.not_expr())
         return self.atom()
 
-    def atom(self):
+    def atom(self) -> Node:
         tok = self.next()
         if tok is None:
             raise ValueError("запит закінчився несподівано")
-        kind, value = tok
-        if kind == "TERM":
-            return Term(value)
-        if kind == "PHRASE":
-            return Phrase(value)
-        if kind == "LPAREN":
+        if tok.kind == "TERM":
+            return Term(tok.text)
+        if tok.kind == "PHRASE":
+            return Phrase(tok.terms)
+        if tok.kind == "LPAREN":
             node = self.or_expr()
-            if self.next() != ("RPAREN", ")"):
+            closing = self.next()
+            if closing is None or closing.kind != "RPAREN":
                 raise ValueError("незакрита дужка")
             return node
-        raise ValueError(f"несподіваний елемент: {value}")
+        raise ValueError(f"несподіваний елемент: {tok.text}")
 
 
 def parse(query: str) -> Node:
@@ -244,51 +262,23 @@ def parse(query: str) -> Node:
 # ======================= пошук + рейтинг =======================
 
 @timed
-def ranked_search(index, query: str, scorer, k: int = 10, evaluator=None):
+def ranked_search(
+    index: Index,
+    query: str,
+    scorer: Scorer,
+    k: int = 10,
+    evaluator: Callable[[Node], Sequence[int]] | None = None,
+    engine: Engine = "merge",
+) -> tuple[Node, int, list[SearchResult]]:
     """Boolean-фільтр визначає, ЩО знайдено; scorer - у якому порядку показати.
 
-    evaluator - необов'язковий кешований обчислювач дерева (cached_evaluator).
+    evaluator - необов'язковий кешований обчислювач дерева (CachedEvaluator).
     Бал додають лише терміни поза NOT. Якщо таких немає (запит `NOT x`),
     документи повертаються з балом 0 за порядком doc_id.
     """
     tree = parse(query)
-    ids = evaluator(tree) if evaluator else tree.evaluate(index)
+    ids = evaluator(tree) if evaluator is not None else tree.evaluate(index, engine)
     terms = positive_terms(tree)
     if not terms:
         return tree, len(ids), [SearchResult(0.0, d, index.docs[d].name) for d in ids[:k]]
     return tree, len(ids), rank(index, terms, scorer, k, candidates=set(ids))
-
-
-def main():
-    logging.basicConfig(level=logging.INFO, format="  [лог] %(message)s")
-    parser = argparse.ArgumentParser(description="Ранжований Boolean-пошук")
-    parser.add_argument("index", type=Path)
-    parser.add_argument("queries", nargs="+",
-                        help="один або кілька запитів; кеш спільний на всю сесію")
-    parser.add_argument("--scorer", choices=SCORERS, default="bm25")
-    parser.add_argument("-k", type=int, default=10)
-    args = parser.parse_args()
-
-    scorer = SCORERS[args.scorer]()
-    with open_index(args.index) as idx:
-        evaluator = cached_evaluator(idx)
-        for query in args.queries:
-            print(f"\n> {query}")
-            start = time.perf_counter()
-            try:
-                tree, total, results = ranked_search(idx, query, scorer, args.k, evaluator)
-            except ValueError as e:
-                print(f"Помилка в запиті: {e}")
-                continue
-            elapsed = time.perf_counter() - start
-            print(f"Дерево: {tree}")
-            print(f"Знайдено {total} док., показано {len(results)} ({scorer}, {elapsed * 1000:.3f} мс)")
-            terms = positive_terms(tree)
-            for i, r in enumerate(results, 1):
-                print(f"{i:>2}. {r.score:7.3f}  {r.name}  ({idx.docs[r.doc_id].length} токенів)")
-                print(f"      {make_snippet(idx, r.doc_id, terms).text}")
-        print(f"\nКеш: {evaluator.cache_info()}")
-
-
-if __name__ == "__main__":
-    main()

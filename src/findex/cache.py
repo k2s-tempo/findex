@@ -9,29 +9,41 @@
 import logging
 from functools import lru_cache
 
+from findex.index import Index
+from findex.query import Node
+
 log = logging.getLogger("findex")
 
 
-def cached_evaluator(index, maxsize: int = 128):
-    """Повертає evaluate(tree) -> tuple[int, ...] з lru_cache для цього індексу.
+class CachedEvaluator:
+    """evaluate(tree) -> tuple[int, ...] з lru_cache для конкретного індексу.
 
-    Кеш створюється в замиканні для конкретного індексу (Index хешується за
-    ідентичністю, тож класти його в ключ невигідно), а при index.close()
-    очищується через зареєстровану on_close-дію.
+    Кеш прив'язаний до індексу (Index хешується за ідентичністю, тож класти його
+    в ключ невигідно), а при index.close() очищується через on_close-дію.
     """
-    @lru_cache(maxsize=maxsize)
-    def _cached(tree):
-        log.info("cache MISS: %s", tree)        # тіло виконується лише при промаху
-        return tuple(tree.evaluate(index))
 
-    def evaluate(tree):
-        hits_before = _cached.cache_info().hits
-        ids = _cached(tree)
-        if _cached.cache_info().hits > hits_before:
+    def __init__(self, index: Index, maxsize: int = 128) -> None:
+        self._index = index
+        self._cached = lru_cache(maxsize=maxsize)(self._compute)
+        index.on_close(self._cached.cache_clear)
+
+    def _compute(self, tree: Node) -> tuple[int, ...]:
+        log.info("cache MISS: %s", tree)        # тіло виконується лише при промаху
+        return tuple(tree.evaluate(self._index))
+
+    def __call__(self, tree: Node) -> tuple[int, ...]:
+        hits_before = self._cached.cache_info().hits
+        ids = self._cached(tree)
+        if self._cached.cache_info().hits > hits_before:
             log.info("cache HIT:  %s", tree)
         return ids
 
-    evaluate.cache_info = _cached.cache_info
-    evaluate.cache_clear = _cached.cache_clear
-    index.on_close(_cached.cache_clear)
-    return evaluate
+    def cache_info(self):  # повертає functools._CacheInfo (приватний тип, тож без анотації)
+        return self._cached.cache_info()
+
+    def cache_clear(self) -> None:
+        self._cached.cache_clear()
+
+
+def cached_evaluator(index: Index, maxsize: int = 128) -> CachedEvaluator:
+    return CachedEvaluator(index, maxsize)

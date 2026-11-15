@@ -43,7 +43,9 @@ def test_result_is_immutable_tuple(idx):
 
 def test_maxsize_evicts_oldest(idx):
     ev = cached_evaluator(idx, maxsize=1)
-    ev(parse("alpha")); ev(parse("beta")); ev(parse("alpha"))
+    ev(parse("alpha"))
+    ev(parse("beta"))
+    ev(parse("alpha"))
     assert ev.cache_info().misses == 3 and ev.cache_info().hits == 0
 
 

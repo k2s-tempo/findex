@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from findex!")
+"""findex: навчальна пошукова система (інвертований індекс, BM25/TF-IDF, булеві запити)."""

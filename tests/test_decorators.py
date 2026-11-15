@@ -2,7 +2,9 @@ import logging
 
 import pytest
 
-from findex import index as index_mod, query as query_mod, storage as storage_mod
+from findex import index as index_mod
+from findex import query as query_mod
+from findex import storage as storage_mod
 from findex.decorators import timed
 
 

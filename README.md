@@ -1,5 +1,7 @@
 ﻿# findex
 
+[![CI](https://github.com/k2s-tempo/findex/actions/workflows/ci.yml/badge.svg)](https://github.com/k2s-tempo/findex/actions/workflows/ci.yml)
+
 Навчальний проєкт: власна пошукова система на Python, яка будується поступово протягом курсу.
 Лабораторна 1 — ітератори, генератори та збір корпусу.
 
@@ -355,3 +357,37 @@ BM25 виграв у 5 запитах, TF-IDF у 2, у 3 нічия. Повні 
     uv run python -m findex.evaluation index.bin
 
 Індекс для фраз треба будувати з `--positions` (у cmd лапки фрази екрануються як `\"`).
+
+# Лабораторна 4. Типи, тести, пакування і CLI
+
+## Встановлення і команди
+
+    uv tool install .                  # кладе команду findex у PATH
+    findex --help
+    findex index data/raw -o index.bin
+    findex search index.bin "virtue NOT crito" --engine set
+    findex search index.bin "virtue" --json > result.json
+    findex stats index.bin -n 10
+    findex -vv search index.bin "virtue"   # -v / -vv: більше логів, у stderr
+
+Очікувані помилки (немає файлу, зламаний запит) дають один рядок у stderr і ненульовий код виходу, без стека викликів.
+
+## Тести, типи, покриття
+
+    uv run pytest                      # усі тести (253)
+    uv run pytest -m "not slow"        # без повільних
+    uv run pytest --cov=findex --cov-report=term-missing
+    uv run pyright                     # strict, 0 помилок
+    uv run ruff check src tests
+
+**Покриття: 100%** (рядки і гілки: 898 операторів, 200 гілок), Python 3.11.
+У `src/findex` жодного `# type: ignore`. CI (ruff, pyright, pytest) йде на Python 3.11 і 3.12.
+
+Що саме означає це число і чого воно не гарантує:
+
+- Міряється лише пакет `src/findex`. Каталог `scripts/` (бенчмарки, оцінка якості) у покриття не входить.
+- З підрахунку виключено за налаштуванням `pyproject.toml`: блоки `if __name__ == "__main__":`, рядки `raise NotImplementedError` і рядки з одним `...` (заглушки протоколів).
+- Гілки `BIG_ENDIAN` у `storage.py` покриті тестом із підміненим прапорцем: він перевіряє, що `byteswap` при записі й читанні взаємно обернені, але на справжній big-endian машині код не запускався.
+- Вивід `rich` (таблиці, смуга прогресу) перевіряється за ключовими підрядками, а не за повним виглядом.
+- Відомий кордон правил токенізатора: типографський апостроф (U+2019) розбиває `don’t` на `don` і `t`. Корпус Gutenberg використовує прямий апостроф, тож тут це не заважає; поведінку зафіксовано тестом.
+- Покриття показує, які рядки виконано, а не чи правильні результати. Для цього є властивісні тести Hypothesis (round-trip `save`/`load`, відсортованість постінгів, збіг `merge_*` з операціями над `set`).

@@ -32,7 +32,8 @@ def test_rare_term_beats_common(idx, scorer):
 
 @pytest.mark.parametrize("scorer", [TfIdf(), BM25()])
 def test_repetition_saturates(idx, scorer):
-    s = lambda tf: scorer.score(tf, 1, 10, idx)
+    def s(tf):
+        return scorer.score(tf, 1, 10, idx)
     assert s(2) > s(1)
     # 20-те повторення майже нічого не додає порівняно з другим
     assert s(20) - s(19) < (s(2) - s(1)) / 10

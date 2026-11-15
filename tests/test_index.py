@@ -3,7 +3,7 @@ from collections.abc import Mapping
 
 import pytest
 
-from findex.index import Index, Posting, build_index
+from findex.index import Posting, build_index
 
 
 @pytest.fixture

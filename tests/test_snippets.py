@@ -1,8 +1,6 @@
-import pytest
 
 from findex.index import build_index
-from findex.snippets import (best_match, find_matches, make_snippet, prepare_text,
-                             snippet_from_text)
+from findex.snippets import best_match, find_matches, make_snippet, prepare_text, snippet_from_text
 
 FILLER = "lorem ipsum dolor sit amet " * 12      # ~320 символів без збігів
 

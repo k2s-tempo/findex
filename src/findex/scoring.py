@@ -2,17 +2,22 @@
 Scorer: об'єкт, що перетворює (tf, df, довжина документа) на бал одного терміна.
 
 Це typing.Protocol: TfIdf і BM25 НЕ наслідують спільний клас, вони просто мають
-метод score з потрібною сигнатурою (duck typing). Будь-який такий об'єкт можна
-підставити в rank() замість них.
+метод score з потрібною сигнатурою (duck typing). pyright перевіряє, що обидві
+реалізації відповідають протоколу, а rank() приймає будь-який такий об'єкт.
 """
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
+
+from findex.index import Index
+
+ScorerName = Literal["tfidf", "bm25"]
 
 
 @runtime_checkable
 class Scorer(Protocol):
-    def score(self, tf: int, df: int, doc_len: int, index) -> float:
+    def score(self, tf: int, df: int, doc_len: int, index: Index) -> float:
         """Бал одного терміна в одному документі.
 
         tf      - скільки разів термін у документі
@@ -32,9 +37,10 @@ class TfIdf:
     norm=True ділить на sqrt(doc_len/avg_len), щоб довгі документи не вигравали
     просто за розмір. norm=False - класичний TF-IDF без урахування довжини.
     """
+
     norm: bool = True
 
-    def score(self, tf: int, df: int, doc_len: int, index) -> float:
+    def score(self, tf: int, df: int, doc_len: int, index: Index) -> float:
         if tf <= 0 or df <= 0:
             return 0.0
         idf = math.log(1 + index.num_docs / df)
@@ -55,10 +61,11 @@ class BM25:
     k1 - наскільки швидко насичується внесок повторів (більше k1 - повільніше).
     b  - сила нормалізації за довжиною (0 - вимкнено, 1 - повна).
     """
+
     k1: float = 1.5
     b: float = 0.75
 
-    def score(self, tf: int, df: int, doc_len: int, index) -> float:
+    def score(self, tf: int, df: int, doc_len: int, index: Index) -> float:
         if tf <= 0 or df <= 0:
             return 0.0
         n = index.num_docs
@@ -68,4 +75,10 @@ class BM25:
         return idf * tf * (self.k1 + 1) / (tf + self.k1 * length_part)
 
 
-SCORERS = {"tfidf": TfIdf, "bm25": BM25}
+# Присвоєння цим словником і є перевірка протоколу: pyright побачить, якщо
+# клас перестане відповідати Scorer.
+SCORERS: dict[ScorerName, Callable[[], Scorer]] = {"tfidf": TfIdf, "bm25": BM25}
+
+
+def make_scorer(name: ScorerName) -> Scorer:
+    return SCORERS[name]()
