@@ -5,6 +5,7 @@ Boolean-пошук без рейтингу (лаба 2): запит -> відс�
 цей модуль зберігає зручну точку входу search() з вибором рушія (Literal) та
 реекспортує merge-функції під їхніми старими іменами.
 """
+
 from findex.index import Index
 from findex.merge import Engine, merge_and, merge_diff, merge_or
 from findex.query import EmptyQueryError, parse

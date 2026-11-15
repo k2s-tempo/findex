@@ -53,8 +53,6 @@ def test_missing_term_does_not_grow_index(corpus):
     assert len(idx.postings) == n
 
 
-
-
 def test_index_is_a_mapping(corpus):
     idx = build_index(corpus)
     assert isinstance(idx, Mapping)
@@ -82,10 +80,10 @@ def test_df_and_num_docs(corpus):
 
 def test_avg_doc_length_is_cached(corpus):
     idx = build_index(corpus)
-    assert "avg_doc_length" not in idx.__dict__   # ще не обчислено
-    assert idx.avg_doc_length == 2.5              # (3 + 2) / 2
-    assert "avg_doc_length" in idx.__dict__       # тепер лежить у кеші
-    idx.docs = []                                 # зміна даних кеш не чіпає
+    assert "avg_doc_length" not in idx.__dict__  # ще не обчислено
+    assert idx.avg_doc_length == 2.5  # (3 + 2) / 2
+    assert "avg_doc_length" in idx.__dict__  # тепер лежить у кеші
+    idx.docs = []  # зміна даних кеш не чіпає
     assert idx.avg_doc_length == 2.5
 
 

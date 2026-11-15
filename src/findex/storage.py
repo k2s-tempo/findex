@@ -1,4 +1,4 @@
-﻿"""
+"""
 Збереження й завантаження індексу.
 
   pickle - стандартна серіалізація Python (зберігає й позиції)
@@ -13,6 +13,7 @@
 відомо з його tf, тому окремі лічильники не потрібні.
 Старий формат FDX1 (без позицій і без flags) теж читається.
 """
+
 import pickle
 import struct
 import sys
@@ -39,6 +40,7 @@ LoadFormat = Literal["auto", "array", "pickle"]
 
 # ---------- pickle ----------
 
+
 def save_pickle(index: Index, path: PathArg) -> None:
     with open(path, "wb") as f:
         pickle.dump(index, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -58,6 +60,7 @@ def load_pickle(path: PathArg) -> Index:
 
 
 # ---------- бінарний формат на array ----------
+
 
 def _pack_str(s: str) -> bytes:
     data = s.encode("utf-8")
@@ -102,13 +105,13 @@ class _Reader:
 
     def string(self) -> str:
         n = self.u32()
-        s = self.buf[self.pos:self.pos + n].decode("utf-8")
+        s = self.buf[self.pos : self.pos + n].decode("utf-8")
         self.pos += n
         return s
 
     def u32_array(self, n: int) -> "array[int]":
         arr: array[int] = array("I")
-        arr.frombytes(self.buf[self.pos:self.pos + 4 * n])
+        arr.frombytes(self.buf[self.pos : self.pos + 4 * n])
         self.pos += 4 * n
         if BIG_ENDIAN:
             arr.byteswap()
@@ -146,7 +149,7 @@ def load_array(path: PathArg) -> Index:
             per_doc: dict[int, list[int]] = {}
             offset = 0
             for d, t in zip(ids, tfs, strict=True):
-                per_doc[d] = flat[offset:offset + t].tolist()
+                per_doc[d] = flat[offset : offset + t].tolist()
                 offset += t
             positions[term] = per_doc
 
@@ -154,6 +157,7 @@ def load_array(path: PathArg) -> Index:
 
 
 # ---------- єдина точка входу ----------
+
 
 def save(index: Index, path: PathArg, fmt: SaveFormat = "array") -> None:
     if fmt == "pickle":

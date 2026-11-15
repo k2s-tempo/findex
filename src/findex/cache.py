@@ -6,6 +6,7 @@
 рівні дерева й один запис у кеші. Значення - кортеж, а не список: lru_cache
 повертає той самий об'єкт, і змінюваний список можна було б зіпсувати ззовні.
 """
+
 import logging
 from functools import lru_cache
 
@@ -28,7 +29,7 @@ class CachedEvaluator:
         index.on_close(self._cached.cache_clear)
 
     def _compute(self, tree: Node) -> tuple[int, ...]:
-        log.info("cache MISS: %s", tree)        # тіло виконується лише при промаху
+        log.info("cache MISS: %s", tree)  # тіло виконується лише при промаху
         return tuple(tree.evaluate(self._index))
 
     def __call__(self, tree: Node) -> tuple[int, ...]:

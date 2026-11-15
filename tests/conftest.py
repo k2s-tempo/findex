@@ -3,6 +3,7 @@
 
 Тести можуть перевизначати фікстуру з тим самим іменем у своєму файлі (локальна має пріоритет).
 """
+
 from collections.abc import Callable
 from pathlib import Path
 

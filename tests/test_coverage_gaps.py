@@ -1,7 +1,8 @@
-﻿"""
+"""
 Тести для місць, які звіт покриття показав як непокриті:
 cache.py:45, cli.py:81-82 і 324->326, index.py:79, snippets.py:89->91 і 94->97, storage.py:56, 70, 114.
 """
+
 import pickle
 from importlib import metadata
 
@@ -21,6 +22,7 @@ runner = CliRunner()
 
 # ---------- cache.py:45 ----------
 
+
 def test_cache_clear_empties_cache(corpus):
     ev = cached_evaluator(build_index(corpus))
     ev(parse("virtue"))
@@ -31,11 +33,13 @@ def test_cache_clear_empties_cache(corpus):
 
 # ---------- index.py:79 ----------
 
+
 def test_avg_doc_length_of_empty_index_is_zero():
     assert Index({}, []).avg_doc_length == 0.0
 
 
 # ---------- snippets.py:89->91 і 94->97 ----------
+
 
 def test_snippet_left_edge_inside_one_long_word():
     """Ліворуч від збігу немає пробілів: початок вікна лишається де є."""
@@ -53,6 +57,7 @@ def test_snippet_right_edge_inside_one_long_word():
 
 # ---------- storage.py:56 ----------
 
+
 def test_load_pickle_rejects_foreign_object(tmp_path):
     path = tmp_path / "not_an_index.pkl"
     with open(path, "wb") as f:
@@ -62,6 +67,7 @@ def test_load_pickle_rejects_foreign_object(tmp_path):
 
 
 # ---------- storage.py:70 і 114 ----------
+
 
 def test_array_roundtrip_with_byteswap_branches(corpus, tmp_path, monkeypatch):
     """Вмикаємо гілки BIG_ENDIAN. Це перевіряє, що byteswap при записі й читанні
@@ -78,6 +84,7 @@ def test_array_roundtrip_with_byteswap_branches(corpus, tmp_path, monkeypatch):
 
 # ---------- cli.py:81-82 ----------
 
+
 def test_version_when_package_not_installed(monkeypatch):
     def boom(name):
         raise metadata.PackageNotFoundError(name)
@@ -89,6 +96,7 @@ def test_version_when_package_not_installed(monkeypatch):
 
 
 # ---------- cli.py:324->326 ----------
+
 
 def test_stats_of_index_without_documents(tmp_path):
     path = tmp_path / "empty.bin"

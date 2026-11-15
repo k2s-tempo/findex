@@ -1,6 +1,7 @@
 """
 Ранжований пошук: накопичуємо бали по документах і беремо топ-k.
 """
+
 import heapq
 from collections import defaultdict
 from collections.abc import Collection, Iterable
@@ -37,7 +38,7 @@ def rank(
                  (Boolean-фільтр); None = усі документи
     """
     scores: defaultdict[int, float] = defaultdict(float)
-    for term in dict.fromkeys(terms):          # унікальні, у порядку появи
+    for term in dict.fromkeys(terms):  # унікальні, у порядку появи
         plist = index.postings.get(term)
         if not plist:
             continue
@@ -50,7 +51,6 @@ def rank(
     # сортуємо за doc_id: nlargest стабільний, тож за однакового балу
     # першим іде документ із меншим doc_id (детермінований порядок)
     results = (
-        SearchResult(score, doc_id, index.docs[doc_id].name)
-        for doc_id, score in sorted(scores.items())
+        SearchResult(score, doc_id, index.docs[doc_id].name) for doc_id, score in sorted(scores.items())
     )
     return heapq.nlargest(k, results)

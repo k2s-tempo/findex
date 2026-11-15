@@ -4,6 +4,7 @@
 Index поводиться як read-only відображення (collections.abc.Mapping):
 len(index) - кількість термінів, term in index, index[term], for term in index.
 """
+
 from collections import Counter, defaultdict
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -24,7 +25,7 @@ class Posting:
 @dataclass(frozen=True, slots=True)
 class DocMeta:
     doc_id: int
-    name: str    # ім'я файлу без розширення, для показу результатів
+    name: str  # ім'я файлу без розширення, для показу результатів
     path: str
     length: int  # кількість токенів у документі
 
@@ -41,9 +42,9 @@ class Index(Mapping[str, list[Posting]]):
         docs: list[DocMeta],
         positions: dict[str, dict[int, list[int]]] | None = None,
     ) -> None:
-        self.postings = postings      # term -> list[Posting]
-        self.docs = docs              # індекс у списку = doc_id
-        self.positions = positions    # term -> {doc_id: [позиції]} або None
+        self.postings = postings  # term -> list[Posting]
+        self.docs = docs  # індекс у списку = doc_id
+        self.positions = positions  # term -> {doc_id: [позиції]} або None
         self.closed = False
         self._close_callbacks: list[Callable[[], object]] = []
 

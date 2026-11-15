@@ -1,14 +1,13 @@
-
 from findex.index import build_index
 from findex.snippets import best_match, find_matches, make_snippet, prepare_text, snippet_from_text
 
-FILLER = "lorem ipsum dolor sit amet " * 12      # ~320 символів без збігів
+FILLER = "lorem ipsum dolor sit amet " * 12  # ~320 символів без збігів
 
 
 def test_find_matches_positions_and_case():
     text, lowered = prepare_text("The Soul is immortal. The soul!")
     ms = find_matches(lowered, {"soul"})
-    assert [text[s:e] for s, e, _ in ms] == ["Soul", "soul"]   # регістр оригіналу збережено
+    assert [text[s:e] for s, e, _ in ms] == ["Soul", "soul"]  # регістр оригіналу збережено
     assert all(t == "soul" for _, _, t in ms)
 
 
@@ -54,8 +53,7 @@ def test_prefers_window_with_more_distinct_terms():
 def test_idf_weight_beats_frequent_stopword():
     # "the" трапляється частіше, але рідкий "andromache" має важити більше
     raw = ("the " + "x " * 60) * 4 + "an andromache appears " + "y " * 60
-    snip = snippet_from_text(raw, {"the", "andromache"},
-                             weights={"the": 0.1, "andromache": 3.0}, radius=40)
+    snip = snippet_from_text(raw, {"the", "andromache"}, weights={"the": 0.1, "andromache": 3.0}, radius=40)
     assert "**andromache**" in snip.text
 
 
@@ -80,13 +78,12 @@ def test_no_matches_shows_beginning():
 
 
 def test_length_changing_lowercase_is_safe():
-    snip = snippet_from_text("İstanbul soul", {"soul"})   # 'İ'.lower() довший за 'İ'
+    snip = snippet_from_text("İstanbul soul", {"soul"})  # 'İ'.lower() довший за 'İ'
     assert "soul" in snip.text.lower() and "**" in snip.text
 
 
 def test_make_snippet_from_file_and_missing_file(tmp_path):
-    (tmp_path / "a.txt").write_text("intro " * 50 + "the soul is immortal " + "outro " * 50,
-                                    encoding="utf-8")
+    (tmp_path / "a.txt").write_text("intro " * 50 + "the soul is immortal " + "outro " * 50, encoding="utf-8")
     idx = build_index(tmp_path)
     snip = make_snippet(idx, 0, ["soul", "immortal"])
     assert "**soul**" in snip.text and "**immortal**" in snip.text

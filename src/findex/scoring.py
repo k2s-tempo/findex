@@ -5,6 +5,7 @@ Scorer: об'єкт, що перетворює (tf, df, довжина доку�
 метод score з потрібною сигнатурою (duck typing). pyright перевіряє, що обидві
 реалізації відповідають протоколу, а rank() приймає будь-який такий об'єкт.
 """
+
 import math
 from collections.abc import Callable
 from dataclasses import dataclass

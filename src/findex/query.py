@@ -20,6 +20,7 @@
 підтримують оператори Python: Term("a") & ~Term("b") | Term("c").
 Виконання (evaluate) працює у двох режимах: merge (два вказівники) і set (множини).
 """
+
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator, Sequence
@@ -39,6 +40,7 @@ class EmptyQueryError(ValueError):
 
 
 # ======================= вузли дерева =======================
+
 
 class Node(ABC):
     """Спільна база: оператори й evaluate. Самі вузли - dataclass-и."""
@@ -75,9 +77,7 @@ class Phrase(Node):
     def evaluate(self, index: Index, engine: Engine = "merge") -> list[int]:
         positions = index.positions
         if positions is None:
-            raise ValueError(
-                "фрази потребують індексу з позиціями (побудуйте його з прапорцем --positions)"
-            )
+            raise ValueError("фрази потребують індексу з позиціями (побудуйте його з прапорцем --positions)")
         first, *rest = self.terms
         docs = Term(first).evaluate(index, engine)
         for t in rest:
@@ -146,6 +146,7 @@ def positive_terms(node: Node) -> list[str]:
 
 # ======================= лексер =======================
 
+
 @dataclass(frozen=True)
 class _Tok:
     kind: Literal["LPAREN", "RPAREN", "TERM", "PHRASE", "OP"]
@@ -174,11 +175,12 @@ def _lex(query: str) -> Iterator[_Tok]:
         elif raw in _OPS:
             yield _Tok("OP", raw)
         else:
-            for tok in tokenize(raw):   # слово може дати 0, 1 або кілька токенів
+            for tok in tokenize(raw):  # слово може дати 0, 1 або кілька токенів
                 yield _Tok("TERM", tok)
 
 
 # ======================= рекурсивний спуск =======================
+
 
 class _Parser:
     def __init__(self, tokens: list[_Tok]) -> None:
@@ -204,7 +206,8 @@ class _Parser:
         leftover = self.peek()
         if leftover is not None:
             raise ValueError(
-                "зайва закриваюча дужка" if leftover.kind == "RPAREN"
+                "зайва закриваюча дужка"
+                if leftover.kind == "RPAREN"
                 else f"несподіваний елемент: {leftover.text}"
             )
         return node
@@ -227,7 +230,7 @@ class _Parser:
             if self._peek_op("AND"):
                 self.next()
                 node = And(node, self.not_expr())
-            elif self._starts_operand(self.peek()):          # неявний AND
+            elif self._starts_operand(self.peek()):  # неявний AND
                 node = And(node, self.not_expr())
             else:
                 return node
@@ -260,6 +263,7 @@ def parse(query: str) -> Node:
 
 
 # ======================= пошук + рейтинг =======================
+
 
 @timed
 def ranked_search(

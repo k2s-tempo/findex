@@ -7,6 +7,7 @@
 Очікувана помилка (немає файлу, зламаний запит) дає один рядок у stderr і код 1,
 без стека викликів; стек видно лише з -vv.
 """
+
 import json
 import logging
 import pickle
@@ -42,7 +43,7 @@ app = typer.Typer(
     add_completion=False,
 )
 
-_HL_OPEN, _HL_CLOSE = "\ue000", "\ue001"   # службові маркери підсвітки (не трапляються в тексті)
+_HL_OPEN, _HL_CLOSE = "\ue000", "\ue001"  # службові маркери підсвітки (не трапляються в тексті)
 _LOAD_ERRORS = (ValueError, struct.error, EOFError, pickle.UnpicklingError)
 _PICKLE_HELP = (
     "Дозволити читання pickle-індексу. НЕБЕЗПЕЧНО для чужих файлів: "
@@ -51,6 +52,7 @@ _PICKLE_HELP = (
 
 
 # ---------- спільні допоміжні функції ----------
+
 
 def fail(message: str) -> NoReturn:
     """Очікувана помилка: один зрозумілий рядок у stderr і ненульовий код виходу."""
@@ -122,13 +124,16 @@ def _json_ascii_only() -> bool:
 
 # ---------- findex index ----------
 
+
 @app.command("index")
 def index_cmd(
     corpus: Annotated[Path, typer.Argument(help="Каталог із .txt-файлами корпусу.")],
     out: Annotated[Path, typer.Option("--out", "-o", help="Куди зберегти індекс.")] = Path("index.bin"),
     positions: Annotated[
         bool,
-        typer.Option("--positions/--no-positions", help="Зберігати позиції токенів (потрібні для фраз у лапках)."),
+        typer.Option(
+            "--positions/--no-positions", help="Зберігати позиції токенів (потрібні для фраз у лапках)."
+        ),
     ] = True,
     fmt: Annotated[SaveFormat, typer.Option("--format", "-f", help="Формат файлу індексу.")] = "array",
 ) -> None:
@@ -162,6 +167,7 @@ def index_cmd(
 
 
 # ---------- findex search ----------
+
 
 @dataclass(frozen=True)
 class ResultRow:
@@ -197,9 +203,7 @@ def _run_search(
             evaluator = cached_evaluator(idx)
             start = time.perf_counter()
             try:
-                tree, total, results = ranked_search(
-                    idx, query, make_scorer(scorer), k, evaluator, engine
-                )
+                tree, total, results = ranked_search(idx, query, make_scorer(scorer), k, evaluator, engine)
             except ValueError as e:
                 log.debug("помилка запиту", exc_info=True)
                 fail(f"некоректний запит: {e}")
@@ -224,10 +228,12 @@ def _run_search(
 
 @app.command("search")
 def search_cmd(
-    index_path: Annotated[Path, typer.Argument(metavar="INDEX", help="Файл індексу (створений findex index).")],
+    index_path: Annotated[
+        Path, typer.Argument(metavar="INDEX", help="Файл індексу (створений findex index).")
+    ],
     query: Annotated[
         str,
-        typer.Argument(help='Запит, напр. \'justice AND (courage OR temperance) NOT slave "the soul"\'.'),
+        typer.Argument(help="Запит, напр. 'justice AND (courage OR temperance) NOT slave \"the soul\"'."),
     ],
     scorer: Annotated[ScorerName, typer.Option("--scorer", "-s", help="Модель ранжування.")] = "bm25",
     engine: Annotated[Engine, typer.Option("--engine", "-e", help="Як виконувати AND/OR/NOT.")] = "merge",
@@ -280,11 +286,14 @@ def search_cmd(
 
 # ---------- findex stats ----------
 
+
 def _print_corpus_stats(console: Console, path: Path, top: int) -> None:
     result, elapsed, peak = run_with_measurement(path, compute_stats_lazy)
     if result["doc_count"] == 0:
         fail(f"у каталозі {path} немає жодного .txt-файлу")
-    summary = Table(title=f"Корпус {path}", caption=f"{elapsed:.2f} с, пік пам'яті {peak / 1024 / 1024:.2f} МБ")
+    summary = Table(
+        title=f"Корпус {path}", caption=f"{elapsed:.2f} с, пік пам'яті {peak / 1024 / 1024:.2f} МБ"
+    )
     summary.add_column("Метрика")
     summary.add_column("Значення", justify="right")
     summary.add_row("Документів", f"{result['doc_count']:,}")
@@ -336,7 +345,9 @@ def _print_index_stats(console: Console, path: Path, top: int, allow_pickle: boo
 @app.command("stats")
 def stats_cmd(
     path: Annotated[Path, typer.Argument(help="Файл індексу або каталог корпусу.")],
-    top: Annotated[int, typer.Option("--top", "-n", min=1, help="Скільки найчастіших термінів показати.")] = 10,
+    top: Annotated[
+        int, typer.Option("--top", "-n", min=1, help="Скільки найчастіших термінів показати.")
+    ] = 10,
     allow_pickle: Annotated[bool, typer.Option("--allow-pickle", help=_PICKLE_HELP)] = False,
 ) -> None:
     """Статистика індексу (файл) або корпусу (каталог, один лінивий прохід)."""

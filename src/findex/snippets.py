@@ -13,6 +13,7 @@
   4. вікно +-radius навколо нього, межі зсуваються до пробілів (слова не
      розрізаються), знайдені терміни обгортаються маркерами.
 """
+
 import math
 import re
 import unicodedata
@@ -28,12 +29,12 @@ from findex.tokenizer import TOKEN_RE
 DEFAULT_RADIUS = 80
 DEFAULT_MARKS = ("**", "**")
 
-Match = tuple[int, int, str]   # (початок, кінець, термін)
+Match = tuple[int, int, str]  # (початок, кінець, термін)
 
 
 @dataclass(frozen=True)
 class Snippet:
-    text: str                 # готовий рядок з маркерами підсвітки
+    text: str  # готовий рядок з маркерами підсвітки
     matched: tuple[str, ...]  # які терміни запиту реально потрапили у вікно
 
 
@@ -41,7 +42,7 @@ def prepare_text(raw: str) -> tuple[str, str]:
     """(текст для показу, текст для пошуку). Довжини гарантовано однакові."""
     normalized = unicodedata.normalize("NFKC", raw)
     lowered = normalized.lower()
-    if len(lowered) != len(normalized):   # рідкісні символи, чий lower() змінює довжину
+    if len(lowered) != len(normalized):  # рідкісні символи, чий lower() змінює довжину
         normalized = lowered
     return normalized, lowered
 
@@ -84,11 +85,11 @@ def render(
     s, e, _ = matches[best]
     start, end = max(0, s - radius), min(len(text), e + radius)
 
-    if start > 0:                              # не розрізати слово зліва
+    if start > 0:  # не розрізати слово зліва
         ws = re.compile(r"\s").search(text, start, s)
         if ws:
             start = ws.end()
-    if end < len(text):                        # ... і справа
+    if end < len(text):  # ... і справа
         chunk = text[e:end]
         cut = max(chunk.rfind(" "), chunk.rfind("\n"), chunk.rfind("\t"))
         if cut >= 0:
@@ -105,7 +106,7 @@ def render(
             found.add(term)
     pieces.append(text[pos:end])
 
-    body = " ".join("".join(pieces).split())   # переноси рядків -> пробіли
+    body = " ".join("".join(pieces).split())  # переноси рядків -> пробіли
     prefix = "..." if start > 0 else ""
     suffix = "..." if end < len(text) else ""
     return Snippet(f"{prefix}{body}{suffix}", tuple(sorted(found)))
@@ -123,8 +124,8 @@ def snippet_from_text(
     wanted = set(terms)
     weight_map: Mapping[str, float] = weights if weights else {t: 1.0 for t in wanted}
     matches = find_matches(lowered, wanted)
-    if not matches:                            # напр. запит лише з NOT: показати початок
-        head = " ".join(text[:2 * radius].split())
+    if not matches:  # напр. запит лише з NOT: показати початок
+        head = " ".join(text[: 2 * radius].split())
         return Snippet(head + ("..." if len(text) > 2 * radius else ""), ())
     return render(text, matches, best_match(matches, weight_map, radius), radius, marks)
 

@@ -30,7 +30,7 @@ def test_roundtrip(tmp_path, index, fmt):
     loaded = load(out)
     assert loaded.postings == index.postings
     assert loaded.docs == index.docs
-    assert loaded.positions == index.positions   # позиції тепер зберігають обидва формати
+    assert loaded.positions == index.positions  # позиції тепер зберігають обидва формати
 
 
 def test_array_without_positions(tmp_path, index_no_pos):

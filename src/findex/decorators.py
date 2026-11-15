@@ -7,6 +7,7 @@ ParamSpec зберігає сигнатуру оригіналу для пере
 
 Лог пишеться рівнем INFO в логер "findex"; CLI вмикає його через -v.
 """
+
 import functools
 import logging
 import time

@@ -19,7 +19,7 @@ def idx(tmp_path):
 
 @pytest.mark.parametrize("scorer", [TfIdf(), TfIdf(norm=False), BM25()])
 def test_scorers_satisfy_protocol(scorer):
-    assert isinstance(scorer, Scorer)   # duck typing: жодного спільного базового класу
+    assert isinstance(scorer, Scorer)  # duck typing: жодного спільного базового класу
     assert Scorer not in type(scorer).__mro__
 
 
@@ -34,10 +34,11 @@ def test_rare_term_beats_common(idx, scorer):
 def test_repetition_saturates(idx, scorer):
     def s(tf):
         return scorer.score(tf, 1, 10, idx)
+
     assert s(2) > s(1)
     # 20-те повторення майже нічого не додає порівняно з другим
     assert s(20) - s(19) < (s(2) - s(1)) / 10
-    assert s(100) < 10 * s(1)                     # не лінійне зростання (лінійне дало б 100)
+    assert s(100) < 10 * s(1)  # не лінійне зростання (лінійне дало б 100)
 
 
 @pytest.mark.parametrize("scorer", [TfIdf(), BM25()])
@@ -69,18 +70,18 @@ def test_search_result_orders_by_score_only():
     a = SearchResult(1.0, doc_id=9, name="z")
     b = SearchResult(2.0, doc_id=1, name="a")
     assert a < b and max(a, b) is b
-    assert SearchResult(1.0, 1, "x") == SearchResult(1.0, 2, "y")   # doc_id не порівнюється
+    assert SearchResult(1.0, 1, "x") == SearchResult(1.0, 2, "y")  # doc_id не порівнюється
 
 
 def test_rank_orders_and_limits(idx):
     res = rank(idx, ["rare", "common"], BM25(), k=2)
     assert len(res) == 2
-    assert res[0].name == "a"                    # єдиний із рідким терміном
+    assert res[0].name == "a"  # єдиний із рідким терміном
     assert res[0].score >= res[1].score
 
 
 def test_rank_ties_prefer_lower_doc_id(idx):
-    res = rank(idx, ["common"], BM25(), k=3)     # b, c, d однакові
+    res = rank(idx, ["common"], BM25(), k=3)  # b, c, d однакові
     ids = [r.doc_id for r in res if r.name != "a"]
     assert ids == sorted(ids)
 

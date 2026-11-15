@@ -4,6 +4,7 @@
 Обидва набори робляться над однаковими вхідними даними й дають однаковий результат:
 відсортований список без повторів.
 """
+
 from collections.abc import Sequence
 from typing import Literal
 

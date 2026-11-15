@@ -13,19 +13,22 @@ def index(tmp_path):
 
 
 @pytest.mark.parametrize("engine", ["merge", "set"])
-@pytest.mark.parametrize("query, expected", [
-    ("banana", [0, 1]),
-    ("apple banana", [0]),            # неявний AND
-    ("apple AND banana", [0]),
-    ("apple OR cherry", [0, 1, 2]),
-    ("banana NOT apple", [1]),
-    ("NOT banana", [2]),
-    ("apple cherry", []),
-    ("Apple", [0]),                   # нормалізація регістру
-    ("missing", []),
-    ("apple OR date NOT banana", [0, 2]),
-    ("", []),
-])
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("banana", [0, 1]),
+        ("apple banana", [0]),  # неявний AND
+        ("apple AND banana", [0]),
+        ("apple OR cherry", [0, 1, 2]),
+        ("banana NOT apple", [1]),
+        ("NOT banana", [2]),
+        ("apple cherry", []),
+        ("Apple", [0]),  # нормалізація регістру
+        ("missing", []),
+        ("apple OR date NOT banana", [0, 2]),
+        ("", []),
+    ],
+)
 def test_queries(index, engine, query, expected):
     assert search(index, query, engine) == expected
 

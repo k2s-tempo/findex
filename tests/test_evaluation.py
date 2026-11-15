@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from evaluation import LABELED, evaluate, precision_at_k
 
 from findex.index import build_index
@@ -7,16 +7,16 @@ from findex.scoring import BM25
 
 def test_precision_at_k_basic():
     assert precision_at_k(["a", "b", "c", "d", "e"], {"a", "c"}, 5) == 0.4
-    assert precision_at_k(["A", "b"], {"a"}, 5) == 0.2          # регістр не важливий; ділимо на k
+    assert precision_at_k(["A", "b"], {"a"}, 5) == 0.2  # регістр не важливий; ділимо на k
     assert precision_at_k([], {"a"}, 5) == 0.0
-    assert precision_at_k(["a", "b", "c", "d", "e", "f"], {"f"}, 5) == 0.0   # лише топ-k
+    assert precision_at_k(["a", "b", "c", "d", "e", "f"], {"f"}, 5) == 0.0  # лише топ-k
 
 
 def test_labeled_set_is_well_formed():
     assert len(LABELED) == 10
     for query, relevant in LABELED:
         assert query and relevant
-        assert all(n == n.lower() for n in relevant)             # імена малими літерами
+        assert all(n == n.lower() for n in relevant)  # імена малими літерами
 
 
 def test_evaluate_on_small_corpus(tmp_path):

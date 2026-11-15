@@ -40,5 +40,6 @@ def test_empty_string():
 
 def test_is_generator():
     import types
+
     result = tokenize("test")
     assert isinstance(result, types.GeneratorType)

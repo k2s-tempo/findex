@@ -1,6 +1,7 @@
 """
 Статистика корпусу за ОДИН прохід (лаба 1) і допоміжний замір часу та пікової пам'яті.
 """
+
 import time
 import tracemalloc
 from collections import Counter
@@ -30,9 +31,9 @@ def compute_stats_lazy(corpus_dir: Path) -> CorpusStats:
     doc_count = 0
     token_count = 0
     term_freq: Counter[str] = Counter()
-    for doc in iter_documents(corpus_dir):     # генератор - 1 документ за раз
+    for doc in iter_documents(corpus_dir):  # генератор - 1 документ за раз
         doc_count += 1
-        for token in tokenize(doc.text):        # генератор - 1 токен за раз
+        for token in tokenize(doc.text):  # генератор - 1 токен за раз
             token_count += 1
             term_freq[token] += 1
     return {

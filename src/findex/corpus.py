@@ -4,6 +4,7 @@ iter_documents(): генератор, що читає корпус докуме�
 Правило: 1 файл Project Gutenberg (.txt) = 1 документ. З кожного файлу
 відрізається стандартна преамбула/постамбула Gutenberg (ліцензійний текст).
 """
+
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass

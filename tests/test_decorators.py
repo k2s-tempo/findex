@@ -17,8 +17,8 @@ def test_timed_returns_value_and_preserves_metadata():
     assert add(2, b=3) == 5
     assert add.__name__ == "add"
     assert add.__doc__ == "Додає числа."
-    assert callable(add.__wrapped__)          # functools.wraps залишає посилання на оригінал
-    assert add.__wrapped__(1) == 2            # оригінал викликається без заміру
+    assert callable(add.__wrapped__)  # functools.wraps залишає посилання на оригінал
+    assert add.__wrapped__(1) == 2  # оригінал викликається без заміру
 
 
 def test_timed_logs_name_and_time(caplog):
