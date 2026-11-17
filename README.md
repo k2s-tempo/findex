@@ -1,4 +1,4 @@
-﻿# findex
+# findex
 
 [![CI](https://github.com/k2s-tempo/findex/actions/workflows/ci.yml/badge.svg)](https://github.com/k2s-tempo/findex/actions/workflows/ci.yml)
 
