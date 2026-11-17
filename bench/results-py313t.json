@@ -1,0 +1,261 @@
+{
+  "machine": {
+    "python": "3.13.15",
+    "implementation": "CPython",
+    "gil": "ВИМКНЕНО",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 33 Stepping 2, AuthenticAMD",
+    "cpu_count": 16
+  },
+  "positions": true,
+  "runs": [
+    {
+      "executor": "serial",
+      "workers": 1,
+      "wall": 11.567561799998657,
+      "cpu": 11.4375,
+      "rss_mb": NaN,
+      "map": 10.792662899999414,
+      "merge": 0.007932399999845074,
+      "gil_enabled": false
+    },
+    {
+      "executor": "serial",
+      "workers": 1,
+      "wall": 11.436988800000108,
+      "cpu": 11.390625,
+      "rss_mb": NaN,
+      "map": 10.597295899999153,
+      "merge": 0.0084753000010096,
+      "gil_enabled": false
+    },
+    {
+      "executor": "serial",
+      "workers": 1,
+      "wall": 11.62579459999688,
+      "cpu": 11.59375,
+      "rss_mb": NaN,
+      "map": 10.88302179999664,
+      "merge": 0.007507300000725081,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 1,
+      "wall": 12.314556400000583,
+      "cpu": 12.234375,
+      "rss_mb": NaN,
+      "map": 10.805033099997672,
+      "merge": 0.15105360000234214,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 1,
+      "wall": 12.357097399999475,
+      "cpu": 12.296875,
+      "rss_mb": NaN,
+      "map": 10.9032120999982,
+      "merge": 0.15622580000126618,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 1,
+      "wall": 12.658630100002483,
+      "cpu": 12.546875,
+      "rss_mb": NaN,
+      "map": 10.943193399998563,
+      "merge": 0.1935211000018171,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 2,
+      "wall": 9.279028900000412,
+      "cpu": 15.046875,
+      "rss_mb": NaN,
+      "map": 7.743893999999273,
+      "merge": 0.1928953000024194,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 2,
+      "wall": 9.913392099999328,
+      "cpu": 16.0,
+      "rss_mb": NaN,
+      "map": 8.15725840000232,
+      "merge": 0.24842029999854276,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 2,
+      "wall": 9.686566600001242,
+      "cpu": 15.75,
+      "rss_mb": NaN,
+      "map": 8.150355599998875,
+      "merge": 0.1991821000010532,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 4,
+      "wall": 6.392999700001383,
+      "cpu": 15.078125,
+      "rss_mb": NaN,
+      "map": 4.792536700002529,
+      "merge": 0.2516079999986687,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 4,
+      "wall": 6.4559640999978,
+      "cpu": 15.1875,
+      "rss_mb": NaN,
+      "map": 4.896498999998585,
+      "merge": 0.24075440000160597,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 4,
+      "wall": 6.164241700000275,
+      "cpu": 14.53125,
+      "rss_mb": NaN,
+      "map": 4.420057299998007,
+      "merge": 0.2716599000013957,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 8,
+      "wall": 5.6193638000004285,
+      "cpu": 19.4375,
+      "rss_mb": NaN,
+      "map": 3.90034039999955,
+      "merge": 0.39109430000098655,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 8,
+      "wall": 5.80201980000129,
+      "cpu": 20.40625,
+      "rss_mb": NaN,
+      "map": 3.8603044000010414,
+      "merge": 0.42986439999731374,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 8,
+      "wall": 5.613260399997671,
+      "cpu": 19.625,
+      "rss_mb": NaN,
+      "map": 3.8650557000000845,
+      "merge": 0.37118650000047637,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 16,
+      "wall": 5.676339300000109,
+      "cpu": 29.71875,
+      "rss_mb": NaN,
+      "map": 3.8434008000003814,
+      "merge": 0.46390210000026855,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 16,
+      "wall": 5.573674600000231,
+      "cpu": 30.5625,
+      "rss_mb": NaN,
+      "map": 3.759516400001303,
+      "merge": 0.4587714999979653,
+      "gil_enabled": false
+    },
+    {
+      "executor": "threads",
+      "workers": 16,
+      "wall": 5.610095000000001,
+      "cpu": 29.96875,
+      "rss_mb": NaN,
+      "map": 3.72760019999987,
+      "merge": 0.46784240000124555,
+      "gil_enabled": false
+    }
+  ],
+  "median": [
+    {
+      "executor": "serial",
+      "workers": 1,
+      "runs": 3,
+      "wall": 11.567561799998657,
+      "cpu": 11.4375,
+      "rss_mb": NaN,
+      "map": 10.792662899999414,
+      "merge": 0.007932399999845074,
+      "speedup": 1.0
+    },
+    {
+      "executor": "threads",
+      "workers": 1,
+      "runs": 3,
+      "wall": 12.357097399999475,
+      "cpu": 12.296875,
+      "rss_mb": NaN,
+      "map": 10.9032120999982,
+      "merge": 0.15622580000126618,
+      "speedup": 0.9361067106260041
+    },
+    {
+      "executor": "threads",
+      "workers": 2,
+      "runs": 3,
+      "wall": 9.686566600001242,
+      "cpu": 15.75,
+      "rss_mb": NaN,
+      "map": 8.150355599998875,
+      "merge": 0.1991821000010532,
+      "speedup": 1.1941859564561477
+    },
+    {
+      "executor": "threads",
+      "workers": 4,
+      "runs": 3,
+      "wall": 6.392999700001383,
+      "cpu": 15.078125,
+      "rss_mb": NaN,
+      "map": 4.792536700002529,
+      "merge": 0.2516079999986687,
+      "speedup": 1.8094106589737764
+    },
+    {
+      "executor": "threads",
+      "workers": 8,
+      "runs": 3,
+      "wall": 5.6193638000004285,
+      "cpu": 19.625,
+      "rss_mb": NaN,
+      "map": 3.8650557000000845,
+      "merge": 0.39109430000098655,
+      "speedup": 2.05851804789677
+    },
+    {
+      "executor": "threads",
+      "workers": 16,
+      "runs": 3,
+      "wall": 5.610095000000001,
+      "cpu": 29.96875,
+      "rss_mb": NaN,
+      "map": 3.759516400001303,
+      "merge": 0.46390210000026855,
+      "speedup": 2.061919058411427
+    }
+  ]
+}

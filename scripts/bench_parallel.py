@@ -15,6 +15,7 @@
 
 import argparse
 import json
+import math
 import os
 import platform
 import statistics
@@ -28,19 +29,25 @@ FIELDS = ("wall", "cpu", "rss_mb", "map", "merge")
 
 
 def peak_rss_mb() -> float:
-    """Пік пам'яті поточного процесу, МБ (Windows: peak working set; Linux/macOS: ru_maxrss)."""
+    """Пік пам'яті поточного процесу, МБ (Windows: peak working set; Linux/macOS: ru_maxrss).
+
+    Без psutil на Windows повертає nan: у таблиці буде n/a, решта бенчмарку працює.
+    """
     try:
         import resource
 
         peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         return peak / (1024 * 1024 if sys.platform == "darwin" else 1024)
     except ImportError:  # Windows
+        pass
+    try:
         import psutil
+    except ImportError:
+        return math.nan
+    return psutil.Process().memory_info().peak_wset / 1024 / 1024  # type: ignore[attr-defined]  # peak_wset є лише у psutil на Windows
 
-        return psutil.Process().memory_info().peak_wset / 1024 / 1024  # type: ignore[attr-defined]  # peak_wset є лише у psutil на Windows
 
-
-def run_one(corpus: Path, executor: str, workers: int, positions: bool) -> dict[str, float]:
+def run_one(corpus: Path, executor: str, workers: int, positions: bool) -> dict[str, Any]:
     """Один замір (виконується в дочірньому процесі)."""
     from findex.parallel import build_parallel
 
@@ -49,12 +56,21 @@ def run_one(corpus: Path, executor: str, workers: int, positions: bool) -> dict[
     build_parallel(corpus, positions, executor=executor, workers=workers, timings=timings)  # type: ignore[arg-type]  # виконавець приходить рядком з командного рядка
     wall = time.perf_counter() - wall_before
     cpu = time.process_time() - cpu_before
+    gil = getattr(sys, "_is_gil_enabled", None)
+    gil_enabled = None if gil is None else bool(gil())  # дивимось ДО імпорту psutil: розширення може увімкнути GIL
     if executor == "processes":
         cpu += timings["worker_cpu"]  # CPU воркерів-процесів у батьківський process_time не потрапляє
-    return {"wall": wall, "cpu": cpu, "rss_mb": peak_rss_mb(), "map": timings["map"], "merge": timings["merge"]}
+    return {
+        "wall": wall,
+        "cpu": cpu,
+        "rss_mb": peak_rss_mb(),
+        "map": timings["map"],
+        "merge": timings["merge"],
+        "gil_enabled": gil_enabled,
+    }
 
 
-def measure(corpus: Path, executor: str, workers: int, positions: bool) -> dict[str, float]:
+def measure(corpus: Path, executor: str, workers: int, positions: bool) -> dict[str, Any]:
     command = [sys.executable, __file__, "--one", str(corpus), executor, str(workers)]
     if not positions:
         command.append("--no-positions")
@@ -94,6 +110,10 @@ def median_rows(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return rows
 
 
+def rss_text(value: float) -> str:
+    return "n/a" if math.isnan(value) else f"{value:.0f}"
+
+
 def markdown_table(rows: list[dict[str, Any]]) -> str:
     lines = [
         "| Executor | Workers | Wall (s, median) | CPU (s) | Peak RSS (MB) | Merge (s) | Speedup |",
@@ -101,7 +121,7 @@ def markdown_table(rows: list[dict[str, Any]]) -> str:
     ]
     for r in rows:
         lines.append(
-            f"| {r['executor']} | {r['workers']} | {r['wall']:.2f} | {r['cpu']:.2f} | {r['rss_mb']:.0f} "
+            f"| {r['executor']} | {r['workers']} | {r['wall']:.2f} | {r['cpu']:.2f} | {rss_text(r['rss_mb'])} "
             f"| {r['merge']:.3f} | {r['speedup']:.2f}× |"
         )
     return "\n".join(lines)
@@ -172,13 +192,20 @@ def main() -> None:
     suffix = f"-{args.tag}" if args.tag else ""
     args.out_dir.mkdir(parents=True, exist_ok=True)
     (args.out_dir / f"results{suffix}.json").write_text(
-        json.dumps({"machine": info, "positions": positions, "runs": runs, "median": rows}, ensure_ascii=False, indent=2),
+        json.dumps(
+            {"machine": info, "positions": positions, "runs": runs, "median": rows}, ensure_ascii=False, indent=2
+        ),
         encoding="utf-8",
     )
     table = markdown_table(rows)
     (args.out_dir / f"table{suffix}.md").write_text(table + "\n", encoding="utf-8")
-    plot(rows, args.png or args.out_dir / f"speedup{suffix}.png", f"Прискорення індексації (Python {info['python']}, GIL: {info['gil']})")
+    gil_seen = sorted({str(r["gil_enabled"]) for r in runs})
+    print(f"\nGIL під час замірів (за sys._is_gil_enabled()): {', '.join(gil_seen)}")
     print("\n" + table)
+    try:
+        plot(rows, args.png or args.out_dir / f"speedup{suffix}.png", f"Прискорення індексації (Python {info['python']})")
+    except ImportError:
+        print("\nmatplotlib не встановлено: графік пропущено (таблиця й JSON збережені).")
 
 
 if __name__ == "__main__":
