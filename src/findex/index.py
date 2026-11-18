@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from findex.corpus import list_documents, read_document
+from findex.corpus import Document, list_documents, read_document
 from findex.decorators import timed
 from findex.tokenizer import tokenize
 
@@ -210,3 +210,35 @@ def build_index(
     """Послідовна збірка: один шматок на весь корпус, тобто merge([build_partial(усі шляхи)])."""
     paths = list_documents(corpus_dir)
     return merge([build_partial(paths, 0, with_positions, on_document)])
+
+
+def build_index_from_documents(
+    documents: Iterable[Document],
+    with_positions: bool = False,
+    on_document: Callable[[DocMeta], None] | None = None,
+) -> Index:
+    postings: defaultdict[str, list[Posting]] = defaultdict(list)
+    positions: defaultdict[str, dict[int, list[int]]] = defaultdict(dict)
+    docs: list[DocMeta] = []
+
+    for doc_id, doc in enumerate(documents):
+        if with_positions:
+            local: defaultdict[str, list[int]] = defaultdict(list)
+            for pos, token in enumerate(tokenize(doc.text)):
+                local[token].append(pos)
+            length = sum(len(plist) for plist in local.values())
+            for term, plist in local.items():
+                postings[term].append(Posting(doc_id, len(plist)))
+                positions[term][doc_id] = plist
+        else:
+            counts = Counter(tokenize(doc.text))
+            length = sum(counts.values())
+            for term, tf in counts.items():
+                postings[term].append(Posting(doc_id, tf))
+
+        meta = DocMeta(doc_id, doc.doc_id, str(doc.path), length)
+        docs.append(meta)
+        if on_document is not None:
+            on_document(meta)
+
+    return Index(dict(postings), docs, dict(positions) if with_positions else None)

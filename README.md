@@ -506,3 +506,25 @@ BM25 виграв у 5 запитах, TF-IDF у 2, у 3 нічия. Повні 
     findex index data/raw --executor threads --workers 4 -o index.bin
     findex index data/raw --executor serial -o index.bin
     uv run python scripts/bench_parallel.py
+
+## Лабораторна робота 6 — Асинхронний веб-краулер (`asyncio`)
+
+- **Полігон обходу**: офіційний індекс пропозицій покращення Python (`peps.python.org`), чий `robots.txt` дозволяє обхід, у межах дозволеного домену `allowed_domains`.
+- **Запуск обходу, індексації та пошуку**:
+
+```bash
+uv run findex crawl "https://python.org" --max-pages 200 --concurrency 5 --per-host 5 --delay 0.05 --debug-loop -o data/crawl.jsonl --log crawl.log
+uv run findex index data/crawl.jsonl -o crawl_index.bin
+uv run findex search crawl_index.bin "async OR coroutine"
+```
+
+### Бенчмарк пропускної здатності (`concurrency in {1, 5, 20}`, `max_pages = 200`)
+
+| Concurrency | Pages | Wall (s) | Pages/s | Errors | Peak RSS (MB) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | 200 | 76.06 | 2.63 | 0 | 41.7 |
+| 5 | 200 | 11.80 | 16.94 | 0 | 44.7 |
+| 20 | 200 | 10.23 | 19.55 | 0 | 49.7 |
+
+- **Висновки**: збільшення `concurrency` з `1` до `5` скоротило wall-clock час у **6.45 раза** (`76.06 с` -> `11.80 с`), а при `concurrency = 20` швидкість вийшла на плато через політику ввічливості одного хоста (`per_host_delay = 0.05 с`, теоретична стеля ~20 req/s) при незмінно низькому піковому споживанні пам'яті (`Peak RSS < 50 MB`).
+- **Стійкість та ввічливість**: реалізовано кешовану перевірку `robots.txt` на домен із fallback-політикою на `5xx`/таймаут та `403/404`, подвійне обмеження через глобальний `asyncio.Semaphore` та per-host ліміт з мінімальною затримкою, повтори з `exponential backoff + jitter` (до 3 спроб) і повагою до заголовка `Retry-After` при `HTTP 429`, канонізацію URL без фрагментів і парсинг HTML через `asyncio.to_thread` без блокування циклу подій (`--debug-loop`).

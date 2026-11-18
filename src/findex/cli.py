@@ -28,7 +28,9 @@ from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, T
 from rich.table import Table
 
 from findex.cache import cached_evaluator
-from findex.corpus import list_documents
+from findex.corpus import iter_documents, list_documents
+from findex.crawler.cli_cmd import register_crawl
+from findex.index import build_index_from_documents
 from findex.merge import Engine
 from findex.parallel import ExecutorChoice, build_parallel, resolve_executor
 from findex.query import Node, positive_terms, ranked_search
@@ -157,6 +159,13 @@ def index_cmd(
     ] = None,
 ) -> None:
     """Побудувати індекс корпусу й зберегти його у файл."""
+    if corpus.is_file() and corpus.suffix.lower() == ".jsonl":
+        idx = build_index_from_documents(iter_documents(corpus), positions)
+        if not idx.docs:
+            fail(f"u vidbytomu faili {corpus} nemae dokumentiv")
+        save(idx, out, fmt)
+        typer.echo(f"Zberezheno {out}: {len(idx.docs)} dok., {len(idx)} terminiv")
+        return
     if not corpus.is_dir():
         fail(f"каталог корпусу не знайдено: {corpus}")
     files = list_documents(corpus)
@@ -404,6 +413,9 @@ def stats_cmd(
         _print_index_stats(console, path, top, allow_pickle)
     else:
         fail(f"не знайдено ні файлу індексу, ні каталогу корпусу: {path}")
+
+
+register_crawl(app)
 
 
 if __name__ == "__main__":
