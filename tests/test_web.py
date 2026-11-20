@@ -12,7 +12,9 @@ from findex.web.deps import get_index
 
 
 def make_index(tmp_path: Path) -> Index:
-    (tmp_path / "plato.txt").write_text("justice and virtue are one. virtue is knowledge.\n", encoding="utf-8")
+    (tmp_path / "plato.txt").write_text(
+        "justice and virtue are one. virtue is knowledge.\n", encoding="utf-8"
+    )
     (tmp_path / "crito.txt").write_text("crito speaks of virtue and of the laws.\n", encoding="utf-8")
     docs = [
         DocMeta(0, "plato.txt", str(tmp_path / "plato.txt"), 9),

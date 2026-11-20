@@ -15,7 +15,9 @@ def register_serve(app: typer.Typer) -> None:
         index: Annotated[
             Path | None, typer.Option("--index", "-i", help="Файл індексу (інакше змінна INDEX_PATH).")
         ] = None,
-        host: Annotated[str, typer.Option("--host", envvar="HOST", help="Адреса прослуховування.")] = "127.0.0.1",
+        host: Annotated[
+            str, typer.Option("--host", envvar="HOST", help="Адреса прослуховування.")
+        ] = "127.0.0.1",
         port: Annotated[int, typer.Option("--port", "-p", envvar="PORT", min=1, max=65535)] = 8000,
         workers: Annotated[int, typer.Option("--workers", "-w", min=1, help="Кількість процесів.")] = 1,
     ) -> None:

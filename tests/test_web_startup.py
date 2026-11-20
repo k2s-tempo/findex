@@ -91,7 +91,9 @@ def _fake_uvicorn(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     monkeypatch.setattr("uvicorn.run", fake_run)
     for name in ("HOST", "PORT", "LOG_LEVEL"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("INDEX_PATH", "placeholder")  # serve пише INDEX_PATH в оточення: monkeypatch поверне як було
+    monkeypatch.setenv(
+        "INDEX_PATH", "placeholder"
+    )  # serve пише INDEX_PATH в оточення: monkeypatch поверне як було
     return calls
 
 

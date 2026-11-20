@@ -1,4 +1,5 @@
 """Властивості (Hypothesis): інваріанти, що мають триматися для будь-яких вхідних даних."""
+
 import tempfile
 from pathlib import Path
 
@@ -22,7 +23,9 @@ from findex.query import And, Node, Not, Or, Phrase, Term, parse
 from findex.storage import load, save
 from findex.tokenizer import tokenize
 
-SETTINGS = settings(max_examples=100, deadline=None)   # deadline=None: файловий ввід-вивід нестабільний за часом
+SETTINGS = settings(
+    max_examples=100, deadline=None
+)  # deadline=None: файловий ввід-вивід нестабільний за часом
 
 
 # ---------- стратегії ----------
@@ -55,8 +58,10 @@ def indexes(draw: st.DrawFn, with_positions: bool | None = None) -> Index:
 
 LEAVES = st.one_of(
     st.builds(Term, st.text(alphabet="abcdef", min_size=1, max_size=4)),
-    st.builds(Phrase, st.lists(st.text(alphabet="abcdef", min_size=1, max_size=3), min_size=2, max_size=3)
-              .map(tuple)),
+    st.builds(
+        Phrase,
+        st.lists(st.text(alphabet="abcdef", min_size=1, max_size=3), min_size=2, max_size=3).map(tuple),
+    ),
 )
 TREES = st.recursive(
     LEAVES,
@@ -71,6 +76,7 @@ SORTED_IDS = st.lists(st.integers(0, 60), unique=True).map(sorted)
 
 
 # ---------- властивість 1: save/load повертає той самий індекс ----------
+
 
 @pytest.mark.parametrize("fmt", ["array", "pickle"])
 @SETTINGS
@@ -87,6 +93,7 @@ def test_load_of_save_gives_same_index(fmt, index):
 
 # ---------- властивість 2: постінги завжди відсортовані й узгоджені ----------
 
+
 @pytest.mark.parametrize("with_positions", [False, True])
 @SETTINGS
 @given(texts=st.lists(st.text(alphabet="abcde \n", max_size=60), min_size=1, max_size=5))
@@ -99,7 +106,7 @@ def test_built_postings_are_sorted_and_consistent(with_positions, texts):
     total_tf = [0] * len(index.docs)
     for term, plist in index.postings.items():
         ids = [p.doc_id for p in plist]
-        assert ids == sorted(set(ids)), term                      # строго зростають, без повторів
+        assert ids == sorted(set(ids)), term  # строго зростають, без повторів
         for p in plist:
             assert p.tf >= 1
             total_tf[p.doc_id] += p.tf
@@ -107,10 +114,11 @@ def test_built_postings_are_sorted_and_consistent(with_positions, texts):
                 assert index.positions is not None
                 found = index.positions[term][p.doc_id]
                 assert found == sorted(found) and len(found) == p.tf
-    assert total_tf == [d.length for d in index.docs]            # сума tf документа = його довжина
+    assert total_tf == [d.length for d in index.docs]  # сума tf документа = його довжина
 
 
 # ---------- властивість 3: merge збігається з операціями над set ----------
+
 
 @SETTINGS
 @given(a=SORTED_IDS, b=SORTED_IDS)
@@ -126,7 +134,10 @@ def test_merge_matches_set_operations(a, b):
 
 # ---------- властивість 4: токенізатор ----------
 
-@settings(max_examples=50, deadline=None)   # довільний Unicode дорогий: менше прикладів, щоб тест лишався швидким
+
+@settings(
+    max_examples=50, deadline=None
+)  # довільний Unicode дорогий: менше прикладів, щоб тест лишався швидким
 @given(text=st.text())
 def test_tokens_have_no_whitespace_and_are_not_empty(text):
     for token in tokenize(text):
@@ -142,6 +153,7 @@ def test_tokenize_is_idempotent_on_its_output(text):
 
 # ---------- властивість 5: parse(str(дерево)) == дерево ----------
 
+
 @SETTINGS
 @given(tree=TREES)
 def test_parse_of_str_roundtrips(tree: Node):
@@ -149,6 +161,7 @@ def test_parse_of_str_roundtrips(tree: Node):
 
 
 # ---------- властивість 6: обидва рушії дають однакову відповідь на будь-яке дерево ----------
+
 
 @pytest.fixture(scope="module")
 def fixed_index(tmp_path_factory: pytest.TempPathFactory) -> Index:

@@ -68,7 +68,9 @@ async def request_context(request: Request, call_next: Callable[[Request], Await
     try:
         response = await call_next(request)
     except Exception:
-        log.exception("необроблений виняток, request_id=%s, %s %s", request_id, request.method, request.url.path)
+        log.exception(
+            "необроблений виняток, request_id=%s, %s %s", request_id, request.method, request.url.path
+        )
         response = JSONResponse(
             {"detail": "Internal Server Error", "request_id": request_id}, status_code=500
         )

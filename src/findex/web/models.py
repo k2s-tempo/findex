@@ -13,7 +13,9 @@ class SearchQuery(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    q: str = Field(min_length=1, max_length=500, description="Запит у мові findex (AND/OR/NOT, фрази в лапках).")
+    q: str = Field(
+        min_length=1, max_length=500, description="Запит у мові findex (AND/OR/NOT, фрази в лапках)."
+    )
     k: int = Field(default=10, ge=1, le=50, description="Результатів на сторінці.")
     scorer: ScorerName = "bm25"
     page: int = Field(default=1, ge=1, le=100, description="Номер сторінки, з 1.")
