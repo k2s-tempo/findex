@@ -84,7 +84,7 @@ def make_router(search_mode: str) -> APIRouter:
         )
 
     @router.get("/health", response_model=HealthResponse)
-    def health(index: IndexDep) -> HealthResponse:
+    async def health(index: IndexDep) -> HealthResponse:
         return HealthResponse(status="ok", docs=index.num_docs)
 
     return router
