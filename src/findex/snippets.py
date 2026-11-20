@@ -24,7 +24,6 @@ from pathlib import Path
 
 from findex.corpus import strip_boilerplate
 from findex.index import Index
-from findex.tokenizer import TOKEN_RE
 
 DEFAULT_RADIUS = 80
 DEFAULT_MARKS = ("**", "**")
@@ -47,10 +46,48 @@ def prepare_text(raw: str) -> tuple[str, str]:
     return normalized, lowered
 
 
+_LETTER = re.compile(r"[^\W\d_]")  # той самий клас символів, що й у TOKEN_RE
+_DIGIT = re.compile(r"\d")
+_NUMBER = re.compile(r"\d+")
+_JOINERS = "'-"  # апостроф і дефіс усередині слова не розривають токен
+
+
+def _is_whole_token(text: str, start: int, end: int, numeric: bool) -> bool:
+    """True, якщо text[start:end] є ПОВНИМ токеном за правилами TOKEN_RE, а не частиною довшого."""
+    n = len(text)
+    if numeric:
+        return not (start > 0 and _DIGIT.match(text[start - 1])) and not (end < n and _DIGIT.match(text[end]))
+    if start > 0:
+        prev = text[start - 1]
+        if _LETTER.match(prev) or (prev in _JOINERS and start > 1 and _LETTER.match(text[start - 2])):
+            return False
+    if end < n:
+        nxt = text[end]
+        if _LETTER.match(nxt) or (nxt in _JOINERS and end + 1 < n and _LETTER.match(text[end + 1])):
+            return False
+    return True
+
+
 def find_matches(lowered: str, terms: Iterable[str]) -> list[Match]:
-    """[(start, end, term)] для токенів тексту, що є серед термінів запиту."""
-    wanted = set(terms)
-    return [(m.start(), m.end(), m.group()) for m in TOKEN_RE.finditer(lowered) if m.group() in wanted]
+    """[(start, end, term)] для токенів тексту, що є серед термінів запиту.
+
+    Не проганяємо TOKEN_RE по всьому тексту (мільйони токенів заради кількох термінів):
+    шукаємо кожен термін через str.find і перевіряємо межі токена правилами токенізатора.
+    Результат такий самий, як у повного проходу; терміни мають бути справжніми токенами.
+    """
+    found: list[Match] = []
+    for term in set(terms):
+        if not term:
+            continue
+        numeric = _NUMBER.fullmatch(term) is not None
+        pos = lowered.find(term)
+        while pos != -1:
+            end = pos + len(term)
+            if _is_whole_token(lowered, pos, end, numeric):
+                found.append((pos, end, term))
+            pos = lowered.find(term, pos + 1)
+    found.sort()
+    return found
 
 
 def best_match(matches: Sequence[Match], weights: Mapping[str, float], radius: int = DEFAULT_RADIUS) -> int:
