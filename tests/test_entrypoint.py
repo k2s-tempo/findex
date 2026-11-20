@@ -1,5 +1,4 @@
 """Точка входу python -m findex (запуск __main__.py)."""
-
 import runpy
 import sys
 

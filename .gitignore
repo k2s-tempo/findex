@@ -24,3 +24,8 @@ htmlcov/
 index*.bin
 
 .venv-313t/
+
+.hypothesis/
+.coverage
+htmlcov/
+.ruff_cache/

@@ -67,13 +67,13 @@ def test_search_without_snippets_has_no_snippet_column(index_file):
 def test_search_escapes_rich_markup_in_snippets(index_file):
     result = runner.invoke(app, ["search", str(index_file), "justice AND crito"])
     assert result.exit_code == 0
-    assert "[Aside]" in result.stdout  # дужки з тексту не з'їдені розміткою rich
+    assert "[Aside]" in result.stdout          # дужки з тексту не з'їдені розміткою rich
 
 
 def test_search_json_is_clean_stdout(index_file):
     result = runner.invoke(app, ["search", str(index_file), "justice", "--json"])
     assert result.exit_code == 0
-    payload = json.loads(result.stdout)  # у stdout лише JSON: ні прогресу, ні логів
+    payload = json.loads(result.stdout)        # у stdout лише JSON: ні прогресу, ні логів
     assert payload["total"] == 2 and payload["shown"] == 2
     assert {r["doc"] for r in payload["results"]} == {"meno", "crito"}
     assert "**justice**" in payload["results"][0]["snippet"].lower()
@@ -81,9 +81,7 @@ def test_search_json_is_clean_stdout(index_file):
 
 
 def test_search_json_without_snippets(index_file):
-    payload = json.loads(
-        runner.invoke(app, ["search", str(index_file), "justice", "--json", "--no-snippets"]).stdout
-    )
+    payload = json.loads(runner.invoke(app, ["search", str(index_file), "justice", "--json", "--no-snippets"]).stdout)
     assert all(r["snippet"] == "" for r in payload["results"])
 
 
@@ -143,18 +141,14 @@ def test_phrase_search_with_positions(index_file):
 
 @pytest.mark.parametrize("scorer", ["bm25", "tfidf"])
 def test_scorer_option(index_file, scorer):
-    payload = json.loads(
-        runner.invoke(app, ["search", str(index_file), "justice", "-s", scorer, "--json"]).stdout
-    )
+    payload = json.loads(runner.invoke(app, ["search", str(index_file), "justice", "-s", scorer, "--json"]).stdout)
     assert payload["scorer"] == scorer and payload["total"] == 2
 
 
 @pytest.mark.parametrize("engine", ["merge", "set"])
 def test_engine_option_gives_same_results(index_file, engine):
     query = "(justice OR poetry) NOT crito"
-    payload = json.loads(
-        runner.invoke(app, ["search", str(index_file), query, "-e", engine, "--json"]).stdout
-    )
+    payload = json.loads(runner.invoke(app, ["search", str(index_file), query, "-e", engine, "--json"]).stdout)
     assert payload["engine"] == engine
     assert {r["doc"] for r in payload["results"]} == {"meno", "ion"}
 
@@ -172,12 +166,12 @@ def test_verbosity_levels_go_to_stderr(index_file):
     assert "INFO findex: timed: ranked_search" in verbose.stderr
     assert "cache MISS" in verbose.stderr and "INFO" not in verbose.stdout
     debug = runner.invoke(app, ["-vv", "search", str(index_file), "(virtue"])
-    assert debug.exit_code == 1 and "DEBUG" in debug.stderr  # -vv показує деталі помилки
+    assert debug.exit_code == 1 and "DEBUG" in debug.stderr     # -vv показує деталі помилки
 
 
 def test_logging_is_reconfigured_per_invocation(index_file):
     runner.invoke(app, ["-v", "search", str(index_file), "virtue"])
-    assert logging.getLogger("findex").handlers == []  # обробник прибрано після виконання
+    assert logging.getLogger("findex").handlers == []     # обробник прибрано після виконання
 
 
 def test_stats_index(index_file):
