@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: findex
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: LOG_LEVEL
+        value: INFO
