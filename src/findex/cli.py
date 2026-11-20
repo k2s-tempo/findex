@@ -38,6 +38,7 @@ from findex.scoring import ScorerName, make_scorer
 from findex.snippets import make_snippet
 from findex.stats import compute_stats_lazy, run_with_measurement
 from findex.storage import LoadFormat, SaveFormat, open_index, save
+from findex.web.cli_cmd import register_serve
 
 log = logging.getLogger("findex")
 
@@ -416,6 +417,7 @@ def stats_cmd(
 
 
 register_crawl(app)
+register_serve(app)
 
 
 if __name__ == "__main__":

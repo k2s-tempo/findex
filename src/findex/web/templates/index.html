@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}{{ q }} · {% endif %}findex{% endblock %}
+{% block content %}
+<form class="search" method="get" action="/" role="search">
+  <input type="search" name="q" value="{{ q }}" placeholder="justice AND (courage OR temperance)" autofocus
+         aria-label="Пошуковий запит" maxlength="500">
+  <select name="scorer" aria-label="Модель ранжування">
+    <option value="bm25" {% if scorer == "bm25" %}selected{% endif %}>BM25</option>
+    <option value="tfidf" {% if scorer == "tfidf" %}selected{% endif %}>TF-IDF</option>
+  </select>
+  <button type="submit">Шукати</button>
+</form>
+
+{% if error %}
+  <p class="notice error">{{ error }}</p>
+{% elif result is none %}
+  <section class="hint">
+    <p>Запит може містити <code>AND</code>, <code>OR</code>, <code>NOT</code> (великими літерами), дужки та фрази в лапках.</p>
+    <p class="examples">Спробуйте:
+      {% for ex in examples %}
+        <a href="/?{{ {'q': ex}|urlencode }}">{{ ex }}</a>{% if not loop.last %} · {% endif %}
+      {% endfor %}
+    </p>
+  </section>
+{% elif result.total == 0 %}
+  <p class="notice">Нічого не знайдено за запитом <code>{{ result.parsed }}</code>.</p>
+{% else %}
+  <p class="summary">
+    Знайдено <strong>{{ result.total }}</strong> док. за {{ "%.1f"|format(result.elapsed_ms) }} мс ·
+    сторінка {{ page }} з {{ result.total_pages }}
+  </p>
+  {% if not result.hits %}
+    <p class="notice">На цій сторінці порожньо.</p>
+  {% endif %}
+  <ol class="results" start="{{ result.hits[0].rank if result.hits else 1 }}">
+    {% for h in result.hits %}
+    <li>
+      <h2><a href="/d/{{ h.doc_id }}?{{ view_qs }}">{{ h.name }}</a></h2>
+      <p class="meta"><span class="score" title="бал {{ scorer }}">{{ "%.3f"|format(h.score) }}</span>
+        · {{ "{:,}".format(h.tokens).replace(",", " ") }} токенів</p>
+      <p class="snippet">{{ h.snippet | hl }}</p>
+    </li>
+    {% endfor %}
+  </ol>
+  <nav class="pager" aria-label="Сторінки результатів">
+    {% if prev_url %}<a href="{{ prev_url }}">← Попередня</a>{% else %}<span></span>{% endif %}
+    {% if next_url %}<a href="{{ next_url }}">Наступна →</a>{% else %}<span></span>{% endif %}
+  </nav>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · findex{% endblock %}
+{% block content %}
+<p class="back"><a href="{{ back_url }}">← до результатів</a></p>
+<h1>{{ name }}</h1>
+<p class="meta">{{ "{:,}".format(tokens).replace(",", " ") }} токенів</p>
+<article class="doc">
+  {% for p in paragraphs %}<p>{{ p }}</p>
+  {% endfor %}
+</article>
+{% endblock %}

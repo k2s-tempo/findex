@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}findex{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/">findex</a>
+    <span class="tagline">пошукова система по корпусу текстів</span>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    {{ docs }} документів · {{ terms }} термінів у словнику ·
+    <a href="/api/docs">API</a> · <a href="/stats">/stats</a>
+  </footer>
+</body>
+</html>
