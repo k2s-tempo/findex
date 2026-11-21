@@ -40,3 +40,6 @@ cProfile збільшує час коду з мільйонами дрібних
 ## Старт CLI (`python -X importtime`, до правок)
 
 `import findex.cli` ≈ 407 мс сумарно. Найдорожче: `findex.web.cli_cmd` ≈ 109 мс (через `findex.web.settings` тягне `pydantic_settings`, ≈ 44 мс) і `findex.crawler` ≈ 98 мс (`httpx` ≈ 61 мс); `typer` ≈ 44 мс. *Гіпотеза:* ці імпорти потрібні лише командам `serve` і `crawl`, але їх платить кожен запуск `findex`, зокрема `search`. Перенос імпорту `Settings` у тіло `serve` має зняти ≈ 100 мс (це мій регрес із лаби 7); те саме для `crawl` дало б ще ≈ 100 мс, але це код лаби 6.
+## Scalene (Windows, Python 3.11, scalene 2.4.0): результат неінформативний
+
+Запуск: `scalene run --cli --cpu-only --profile-all` на 20 000 запитів (11,5 с). 83% часу Scalene приписав рядку `threading.py:975` (виклик цілі потоку), причину не з'ясовано; на файли findex припало ≈ 12,6% (`scoring.py` 5,9%, `ranking.py` 3,8%, `storage.py` 1,2%, `merge.py` 1,0%, `query.py` 0,8%), і частку Python у цих рядках він майже не зареєстрував. Розділити «Python / нативний код» за цими цифрами не можна. Висновок про Python-накладні витрати тримається на cProfile (власний час у Python-функціях `score`, `rank`, `merge_and`) і підтверджений експериментом: заміна циклу на NumPy дала ×7 на реальному корпусі й ×42-78 на довгих списках (`docs/optimization.md`).
