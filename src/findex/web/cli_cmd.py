@@ -6,8 +6,6 @@ from typing import Annotated
 
 import typer
 
-from findex.web.settings import Settings
-
 
 def register_serve(app: typer.Typer) -> None:
     @app.command("serve")
@@ -23,6 +21,8 @@ def register_serve(app: typer.Typer) -> None:
     ) -> None:
         """Запустити веб-сервіс пошуку (HTTP API + сторінка)."""
         import uvicorn  # імпорт тут, щоб решта команд CLI не платила за його завантаження
+
+        from findex.web.settings import Settings
 
         if index is not None:
             os.environ["INDEX_PATH"] = str(index)  # воркери-процеси успадковують оточення
