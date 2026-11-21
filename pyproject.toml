@@ -66,7 +66,7 @@ ignore = ["E501"]  # довгі рядки з українськими коме�
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["scripts"]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers --benchmark-disable"
 markers = [
     'slow: тести довші за ~1 с (пропустити: -m "not slow")',
 ]

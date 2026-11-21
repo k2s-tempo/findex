@@ -20,3 +20,12 @@ jobs:
       - run: uv run ruff format --check src tests
       - run: uv run pyright
       - run: uv run pytest -q --cov=findex --cov-report=term-missing
+      - name: Бенчмарки (pytest-benchmark, лише Python 3.12)
+        if: matrix.python-version == '3.12'
+        run: uv run pytest tests/test_benchmarks.py --benchmark-enable --benchmark-only --benchmark-sort=name --benchmark-json=benchmark.json
+      - name: Збереження результатів бенчмарків
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark
+          path: benchmark.json
