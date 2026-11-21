@@ -10,10 +10,14 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from findex.corpus import Document, list_documents, read_document
 from findex.decorators import timed
 from findex.tokenizer import tokenize
+
+if TYPE_CHECKING:
+    from findex.arrays import ArrayIndex
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +84,13 @@ class Index(Mapping[str, list[Posting]]):
             return 0.0
         return sum(d.length for d in self.docs) / len(self.docs)
 
+    @cached_property
+    def arrays(self) -> "ArrayIndex":
+        """NumPy-вигляд постінгів для швидкого ранжування (будується ліниво, див. findex.arrays)."""
+        from findex import arrays
+
+        return arrays.ArrayIndex(self)
+
     @property
     def has_positions(self) -> bool:
         return self.positions is not None
@@ -103,6 +114,7 @@ class Index(Mapping[str, list[Posting]]):
         self.positions = None
         self.docs = []
         self.__dict__.pop("avg_doc_length", None)  # скинути кеш
+        self.__dict__.pop("arrays", None)
 
     def _check_open(self) -> None:
         if self.closed:

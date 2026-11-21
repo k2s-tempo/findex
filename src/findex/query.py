@@ -27,6 +27,7 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
+from findex.arrays import rank_fast
 from findex.decorators import timed
 from findex.index import Index
 from findex.merge import Engine, difference, intersect, union
@@ -273,6 +274,8 @@ def ranked_search(
     k: int = 10,
     evaluator: Callable[[Node], Sequence[int]] | None = None,
     engine: Engine = "merge",
+    *,
+    fast: bool = True,
 ) -> tuple[Node, int, list[SearchResult]]:
     """Boolean-фільтр визначає, ЩО знайдено; scorer - у якому порядку показати.
 
@@ -285,4 +288,6 @@ def ranked_search(
     terms = positive_terms(tree)
     if not terms:
         return tree, len(ids), [SearchResult(0.0, d, index.docs[d].name) for d in ids[:k]]
+    if fast:
+        return tree, len(ids), rank_fast(index, terms, scorer, k, candidates=ids)
     return tree, len(ids), rank(index, terms, scorer, k, candidates=set(ids))
