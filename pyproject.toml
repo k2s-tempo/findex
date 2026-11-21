@@ -1,6 +1,6 @@
 [project]
 name = "findex"
-version = "0.7.0"
+version = "1.0.0"
 description = "Пошукова система по корпусу текстів: інвертований індекс, BM25 і TF-IDF, булеві запити з фразами"
 readme = "README.md"
 authors = [
