@@ -8,8 +8,14 @@
 
 Поводиться як звичайний словник term -> {doc_id: [позиції]}: Mapping дає keys/items/get і ==, тож
 порівняння з dict працює в обидва боки.
+
+Потокобезпечно: веб-сервіс шукає в пулі потоків, а вставка й витіснення в кеші складаються з кількох
+кроків, між якими GIL може віддати керування іншому потоку. Тому кеш захищений замком; саме розгортання
+терміна (повільна частина) відбувається поза замком, а якщо два потоки розгорнули той самий терм,
+перемагає перший (setdefault), обидва отримують однаковий результат.
 """
 
+import threading
 from array import array
 from collections.abc import Iterator, Mapping
 
@@ -35,9 +41,11 @@ class LazyPositions(Mapping[str, dict[int, list[int]]]):
         self._cache: dict[str, dict[int, list[int]]] = {}
         self._cache_limit = cache_limit
         self._byteswap = byteswap
+        self._lock = threading.Lock()
 
     def __getitem__(self, term: str) -> dict[int, list[int]]:
-        cached = self._cache.get(term)
+        with self._lock:
+            cached = self._cache.get(term)
         if cached is not None:
             return cached
         ids, tfs, offset = self._entries[term]  # KeyError для невідомого терміна, як у dict
@@ -50,9 +58,12 @@ class LazyPositions(Mapping[str, dict[int, list[int]]]):
         for doc_id, tf in zip(ids, tfs, strict=True):
             per_doc[doc_id] = flat[start : start + tf]
             start += tf
-        if len(self._cache) >= self._cache_limit:
-            del self._cache[next(iter(self._cache))]  # найстаріший запис (dict зберігає порядок вставки)
-        self._cache[term] = per_doc
+        with self._lock:
+            per_doc = self._cache.setdefault(
+                term, per_doc
+            )  # якщо інший потік уже встиг, беремо його результат
+            while len(self._cache) > self._cache_limit:
+                del self._cache[next(iter(self._cache))]  # найстаріший запис (dict зберігає порядок вставки)
         return per_doc
 
     def __iter__(self) -> Iterator[str]:
@@ -63,3 +74,14 @@ class LazyPositions(Mapping[str, dict[int, list[int]]]):
 
     def __contains__(self, key: object) -> bool:
         return key in self._entries
+
+    # Замок не серіалізується, а кеш після відновлення порожній: розгорнеться знову на вимогу.
+    def __getstate__(self) -> dict[str, object]:
+        state = self.__dict__.copy()
+        del state["_lock"]
+        state["_cache"] = {}
+        return state
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.__dict__.update(state)
+        self._lock = threading.Lock()
