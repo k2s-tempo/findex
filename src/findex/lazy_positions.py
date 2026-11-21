@@ -19,8 +19,6 @@ import threading
 from array import array
 from collections.abc import Iterator, Mapping
 
-import numpy as np
-
 CACHE_LIMIT = 64  # скільки термінів тримати розгорнутими одночасно
 
 
@@ -49,6 +47,8 @@ class LazyPositions(Mapping[str, dict[int, list[int]]]):
         if cached is not None:
             return cached
         ids, tfs, offset = self._entries[term]  # KeyError для невідомого терміна, як у dict
+        import numpy as np  # лише коли справді розгортаємо позиції (імпорт ~90 мс)
+
         raw = np.frombuffer(self._buf, dtype=np.uint32, count=sum(tfs), offset=offset)
         if self._byteswap:
             raw = raw.byteswap()

@@ -27,7 +27,6 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from findex.arrays import rank_fast
 from findex.decorators import timed
 from findex.index import Index
 from findex.merge import Engine, difference, intersect, union
@@ -289,5 +288,7 @@ def ranked_search(
     if not terms:
         return tree, len(ids), [SearchResult(0.0, d, index.docs[d].name) for d in ids[:k]]
     if fast:
+        from findex.arrays import rank_fast  # NumPy вантажимо лише коли справді шукаємо
+
         return tree, len(ids), rank_fast(index, terms, scorer, k, candidates=ids)
     return tree, len(ids), rank(index, terms, scorer, k, candidates=set(ids))
