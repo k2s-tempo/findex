@@ -44,7 +44,7 @@ class Index(Mapping[str, list[Posting]]):
         self,
         postings: dict[str, list[Posting]],
         docs: list[DocMeta],
-        positions: dict[str, dict[int, list[int]]] | None = None,
+        positions: Mapping[str, dict[int, list[int]]] | None = None,
     ) -> None:
         self.postings = postings  # term -> list[Posting]
         self.docs = docs  # індекс у списку = doc_id

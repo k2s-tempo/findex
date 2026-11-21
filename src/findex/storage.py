@@ -26,6 +26,7 @@ from typing import Literal
 
 from findex.decorators import timed
 from findex.index import DocMeta, Index, Posting
+from findex.lazy_positions import LazyPositions
 
 MAGIC_V1 = b"FDX1"
 MAGIC_V2 = b"FDX2"
@@ -137,7 +138,7 @@ def load_array(path: PathArg) -> Index:
         docs.append(DocMeta(doc_id, name, doc_path, length))
 
     postings: dict[str, list[Posting]] = {}
-    positions: dict[str, dict[int, list[int]]] = {}
+    entries: dict[str, tuple[array[int], array[int], int]] = {}
     for _ in range(n_terms):
         term = reader.string()
         n = reader.u32()
@@ -145,15 +146,12 @@ def load_array(path: PathArg) -> Index:
         tfs = reader.u32_array(n)
         postings[term] = [Posting(d, t) for d, t in zip(ids, tfs, strict=True)]
         if has_positions:
-            flat = reader.u32_array(sum(tfs))
-            per_doc: dict[int, list[int]] = {}
-            offset = 0
-            for d, t in zip(ids, tfs, strict=True):
-                per_doc[d] = flat[offset : offset + t].tolist()
-                offset += t
-            positions[term] = per_doc
+            entries[term] = (ids, tfs, reader.pos)  # позиції лишаються в буфері: розгортаємо на вимогу
+            reader.pos += 4 * sum(tfs)
 
-    return Index(postings, docs, positions if has_positions else None)
+    return Index(
+        postings, docs, LazyPositions(reader.buf, entries, byteswap=BIG_ENDIAN) if has_positions else None
+    )
 
 
 # ---------- єдина точка входу ----------
